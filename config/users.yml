@@ -1,0 +1,8 @@
+admin:
+  fullname: Administrator
+  icon: user-shield
+  password: admin
+guest:
+  fullname: Guest
+  icon: user
+  password: ''

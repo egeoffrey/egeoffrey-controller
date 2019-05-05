@@ -1,0 +1,16 @@
+calculate: avg_min_max
+description: Temperature
+format: float_1
+icon: cloud-sun
+retain: history
+service:
+  configuration:
+    latitude: 40.71
+    longitude: -74
+    request: temperature
+  mode: active
+  name: openweathermap
+  schedule:
+    minutes: 10
+    trigger: interval
+unit: "\xB0C"

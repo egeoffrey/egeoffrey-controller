@@ -1,0 +1,12 @@
+description: Webcam
+format: image
+icon: image
+retain: single_value
+service:
+  configuration:
+    url: http://www.mylivestreams.com/images/camera/large_10059.jpg
+  mode: active
+  name: image
+  schedule:
+    minutes: 10
+    trigger: interval

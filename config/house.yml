@@ -1,0 +1,5 @@
+language: en
+name: Sample House
+skin: blue
+timezone: 1
+units: metric

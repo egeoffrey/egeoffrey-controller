@@ -1,0 +1,8 @@
+description: Command Out
+format: float_2
+icon: play
+service:
+  configuration:
+    command: "date > /tmp/command_out"
+  mode: actuator
+  name: command

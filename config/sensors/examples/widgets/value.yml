@@ -1,0 +1,13 @@
+calculate: avg_min_max
+description: Random number
+format: float_2
+icon: hashtag
+retain: history
+service:
+  configuration:
+    command: echo $RANDOM
+  mode: active
+  name: command
+  schedule:
+    seconds: 600
+    trigger: interval

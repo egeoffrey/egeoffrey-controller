@@ -1,0 +1,7 @@
+description: MQTT Output
+format: float_2
+service:
+  configuration:
+    topic: sensors/sensor1
+  mode: actuator
+  name: mqtt

@@ -1,0 +1,9 @@
+calculate: avg_min_max
+description: MQTT Input
+format: float_2
+retain: history
+service:
+  configuration:
+    topic: sensors/sensor1
+  mode: passive
+  name: mqtt

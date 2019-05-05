@@ -1,0 +1,50 @@
+- Command:
+  - icon: play
+    sensor: examples/services/command/command_in
+    size: 3
+    title: Command In
+    type: value
+  - actions:
+    - SET examples/services/command/command_out 1
+    size: 3
+    text: Run Command
+    title: Command Out
+    type: button
+    icon: play
+- Image:
+  - sensor: examples/services/image/image
+    size: 6
+    title: Image
+    type: image
+- MQTT:
+  - sensor: examples/services/mqtt/mqtt_in
+    size: 3
+    title: MQTT In
+    type: value
+    icon: exchange-alt
+  - sensor: examples/services/mqtt/mqtt_out
+    size: 3
+    title: MQTT Out
+    type: input
+    icon: exchange-alt
+- Openweathermap:
+  - icon: thermometer-full
+    sensor: examples/services/openweathermap/temperature
+    size: 3
+    title: Temperature
+    type: value
+  - icon_sensor: examples/services/openweathermap/condition
+    sensor: examples/services/openweathermap/condition_description
+    size: 3
+    title: Weather Condition
+    type: value
+  - icon: tint
+    sensor: examples/services/openweathermap/humidity
+    size: 3
+    title: Humidity
+    type: value
+  - icon: weight
+    sensor: examples/services/openweathermap/pressure
+    size: 3
+    title: Pressure
+    type: value

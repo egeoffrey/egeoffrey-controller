@@ -1,0 +1,4 @@
+description: Input String
+format: string
+icon: keyboard
+retain: single_value

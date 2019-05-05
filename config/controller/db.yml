@@ -1,0 +1,3 @@
+hostname: myhouse-database
+port: 6379
+database: 1

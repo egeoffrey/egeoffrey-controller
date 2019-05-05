@@ -1,0 +1,15 @@
+description: Umidity
+format: int
+icon: cloud-sun
+retain: last_value
+service:
+  configuration:
+    latitude: 40.71
+    longitude: -74
+    request: humidity
+  mode: active
+  name: openweathermap
+  schedule:
+    minutes: 10
+    trigger: interval
+unit: '%'

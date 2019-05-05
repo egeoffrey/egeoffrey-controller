@@ -1,0 +1,15 @@
+calculate: avg_min_max
+description: Weather Condition
+format: string
+icon: cloud-sun
+retain: history
+service:
+  configuration:
+    latitude: 40.71
+    longitude: -74
+    request: condition
+  mode: active
+  name: openweathermap
+  schedule:
+    minutes: 10
+    trigger: interval

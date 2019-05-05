@@ -1,0 +1,90 @@
+master:
+  chart: {}
+  title:
+    text: ''
+  xAxis: {}
+  yAxis:
+    title: " "
+    opposite: true
+    plotLines: []
+    gridLineWidth: 0
+    minorGridLineWidth: 0
+  credits:
+    enabled: false
+  legend:
+    enabled: true
+  rangeSelector:
+    selected: 0
+  tooltip:
+    shared: true
+  plotOptions:
+    spline:
+      marker:
+        enabled: true
+      lineWidth: 3
+      dataLabels:
+        enabled: true
+        y: 40
+        borderRadius: 5
+        backgroundColor: rgba(252, 255, 197, 0.7)
+        borderWidth: 1
+        borderColor: "#AAA"
+    arearange:
+      fillOpacity: 0.2
+      lineWidth: 1
+      color: "#7cb5ec"
+    columnrange:
+      grouping: false
+      shadow: false
+      pointWidth: 10
+      dataLabels:
+        enabled: true
+    bar:
+      pointWidth: 10
+      dataLabels:
+        enabled: true
+    flags:
+      useHTML: true
+      color: gray
+      allowPointSelect: false
+timeseries_min_max:
+  template: master
+  chart:
+    inverted: true
+  xAxis:
+    tickWidth: 0
+    gridLineWidth: 0
+    type: datetime
+    dateTimeLabelFormats:
+      day: "%A"
+timeseries_summary:
+  template: master
+  chart:
+    type: columnrange
+    inverted: true
+  xAxis:
+    type: datetime
+    categories: []
+  series:
+  - name: Yesterday
+    color: rgb(169,255,150)
+    pointWidth: 18
+    dataLabels:
+      enabled: false
+  - name: Today
+    color: "#7cb5ec"
+    pointWidth: 10
+    dataLabels:
+      enabled: true
+timeseries_timeline:
+  template: master
+  chart:
+    type: spline
+    zoomType: x
+  xAxis:
+    type: datetime
+    tickWidth: 0
+    gridLineWidth: 0
+  rangeSelector:
+    enabled: false
+

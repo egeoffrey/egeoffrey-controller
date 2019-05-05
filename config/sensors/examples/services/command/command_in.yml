@@ -1,0 +1,13 @@
+calculate: avg_min_max
+description: Command In
+format: string
+icon: play
+retain: history
+service:
+  configuration:
+    command: cat /tmp/command_out
+  mode: active
+  name: command
+  schedule:
+    minutes: 10
+    trigger: interval

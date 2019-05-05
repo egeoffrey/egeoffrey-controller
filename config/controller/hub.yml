@@ -1,0 +1,32 @@
+poll_at_startup: true
+retain:
+  history:
+    description: "Retain values for 5 days, hourly averages for 5 days and daily averages forever. Recommended for timeseries data"
+    raw: 5
+    hourly: 5
+    daily: 0
+  single_value:
+    description: "Retain the latest value only. Recommended for actuators, status indicators, etc."
+    raw: 0
+    count: 1
+calculate:
+  avg_min_max:
+    description: "Every hour average, minimum and maximum values are automatically calculated from the collected measures; every day average, minimum and maximum are calculated from the hourly averages"
+    operations:
+      - avg
+      - min_max
+  sum:
+    description: "For every hour and day the sum of the measures from each timeframe is automatically calculated"
+    operations:
+      - avg
+      - sum
+post_processors:
+  celsius->fahrenheit: "echo 'print %value% * 1.8 + 32' | python"
+  fahrenheit->celsius: "echo 'print %value% - 32 * 0.56' | python"
+  km->mile: "echo 'print %value% / 1.609' | python"
+  mile->km: "echo 'print %value% * 1.609' | python"
+  meter->km: "echo 'print %value% / 1000' | python"
+  inch->mm: "echo 'print %value% * 25.4' | python"
+  mm->inch: "echo 'print %value% / 25.4' | python"
+  hg->mb: "echo 'print %value% * 33.86' | python"
+  mb->hg: "echo 'print %value% /33.86' | python"

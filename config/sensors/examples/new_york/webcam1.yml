@@ -1,0 +1,12 @@
+description: Webcam
+format: image
+icon: image
+retain: single_value
+service:
+  configuration:
+    url: http://wirednewyork.com/images/webcams/wired-new-york-webcam1.jpg
+  mode: active
+  name: image
+  schedule:
+    minutes: 10
+    trigger: interval

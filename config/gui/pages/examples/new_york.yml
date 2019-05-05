@@ -1,0 +1,67 @@
+- New York Weather:
+  - icon: thermometer-full
+    sensor: examples/new_york/temperature
+    size: 3
+    title: Temperature
+    type: value
+  - icon_sensor: examples/new_york/condition
+    sensor: examples/new_york/condition_description
+    size: 3
+    title: Weather Condition
+    type: value
+  - icon: tint
+    sensor: examples/new_york/humidity
+    size: 3
+    title: Humidity
+    type: value
+  - icon: weight
+    sensor: examples/new_york/pressure
+    size: 3
+    title: Pressure
+    type: value
+- Temperature Statistics:
+  - icon_sensor: examples/new_york/condition
+    sensors:
+    - examples/new_york/temperature
+    size: 3
+    title: 'Temperature: Summary'
+    type: summary
+  - sensors:
+    - examples/new_york/temperature
+    - examples/new_york/condition
+    size: 4
+    title: 'Temperature: Latest measures'
+    type: timeline
+  - group_by: hour
+    sensors:
+    - examples/new_york/temperature
+    - examples/new_york/condition
+    size: 5
+    title: 'Temperature: Hourly'
+    type: timeline
+- ? ''
+  : - group_by: day
+      sensor: examples/new_york/temperature
+      size: 4
+      title: 'Temperature: Daily Ranges'
+      type: range
+    - group_by: day
+      sensors:
+      - examples/new_york/temperature
+      - examples/new_york/condition
+      size: 8
+      title: 'Temperature: Daily'
+      type: timeline
+- Webcams:
+  - sensor: examples/new_york/webcam1
+    size: 4
+    title: Webcam Manhattan
+    type: image
+  - sensor: examples/new_york/webcam2
+    size: 4
+    title: Webcam Hudson River
+    type: image
+  - sensor: examples/new_york/webcam3
+    size: 4
+    title: Webcam Times Square
+    type: image
