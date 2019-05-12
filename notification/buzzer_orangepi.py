@@ -45,5 +45,5 @@ class Buzzer_raspi(Notification):
     def on_configuration(self, message):
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["pin", "duration"], message.get_data()): return
+            if not self.is_valid_module_configuration(["pin", "duration"], message.get_data()): return False
             self.config = message.get_data()

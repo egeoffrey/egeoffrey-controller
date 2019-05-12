@@ -1,4 +1,5 @@
 ### service/gpio_orangepi: read/write from an orangepi GPIO
+### service/gpio_orangepi: read/write from an orangepi GPIO
 ## HOW IT WORKS: 
 ## DEPENDENCIES:
 # OS: 
@@ -37,10 +38,11 @@ class Gpio_raspi(Service):
         self.pins = {}
         # require configuration before starting up
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("sensors/#")
         
     # What to do when running
     def on_start(self):
+        # request all sensors' configuration so to filter sensors of interest
+        self.add_configuration_listener("sensors/#")
 		GPIO.setwarnings(False)
 		mode = GPIO.BCM if self.config["mode"] == "bcm" else GPIO.BOARD
 		GPIO.setmode(mode)
@@ -67,7 +69,7 @@ class Gpio_raspi(Service):
         sensor_id = message.args
         if message.command == "IN":
             # ensure configuration is valid
-            if not self.is_valid_configuration(["pin"], message.get_data(), False): return
+            if not self.is_valid_configuration(["pin"], message.get_data()): return
             pin = message.get("pin")
             # if the raw data is cached, take it from there, otherwise request the data and cache it
             cache_key = "/".join([str(pin)])
@@ -93,7 +95,7 @@ class Gpio_raspi(Service):
     def on_configuration(self,message):
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["mode"], message.get_data()): return
+            if not self.is_valid_module_configuration(["mode"], message.get_data()): return False
             self.config = message.get_data()
         # sensors to register
         elif message.args.startswith("sensors/"):
@@ -113,7 +115,7 @@ class Gpio_raspi(Service):
                 if "edge_detect" not in sensor["service"]["configuration"]: return
                 # configuration settings
                 configuration = sensor["service"]["configuration"]
-                if not self.is_valid_configuration(["pin", "edge_detect"], configuration, False): return
+                if not self.is_valid_configuration(["pin", "edge_detect"], configurations): return
                 pin = configuration["pin"]
                 edge_detect = configuration["edge_detect"]
                 # register the pin

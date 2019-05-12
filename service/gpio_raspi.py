@@ -37,10 +37,11 @@ class Gpio_raspi(Service):
         self.pins = {}
         # require configuration before starting up
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("sensors/#")
         
     # What to do when running
     def on_start(self):
+        # request all sensors' configuration so to filter sensors of interest
+        self.add_configuration_listener("sensors/#")
 		GPIO.setwarnings(False)
 		mode = GPIO.BCM if self.config["mode"] == "bcm" else GPIO.BOARD
 		GPIO.setmode(mode)
@@ -93,7 +94,7 @@ class Gpio_raspi(Service):
     def on_configuration(self,message):
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["mode"], message.get_data()): return
+            if not self.is_valid_module_configuration(["mode"], message.get_data()): return False
             self.config = message.get_data()
         # sensors to register
         elif message.args.startswith("sensors/"):
@@ -113,7 +114,7 @@ class Gpio_raspi(Service):
                 if "edge_detect" not in sensor["service"]["configuration"]: return
                 # configuration settings
                 configuration = sensor["service"]["configuration"]
-                if not self.is_valid_configuration(["pin", "edge_detect"], configuration, False): return
+                if not self.is_valid_configuration(["pin", "edge_detect"], configuration): return
                 pin = configuration["pin"]
                 edge_detect = configuration["edge_detect"]
                 pull_up_down = configuration["pull_up_down"] if "pull_up_down" in configuration else None

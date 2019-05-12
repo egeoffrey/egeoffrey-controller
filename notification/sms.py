@@ -63,9 +63,9 @@ class Sms(Notification):
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
         if message.args == "house":
-            if not self.is_valid_module_configuration(["name"], message.get_data()): return
+            if not self.is_valid_module_configuration(["name"], message.get_data()): return False
             self.house = message.get_data()
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["hostname", "ssl", "username", "password", "from", "to"], message.get_data()): return
+            if not self.is_valid_module_configuration(["hostname", "ssl", "username", "password", "from", "to"], message.get_data()): return False
             self.config = message.get_data()

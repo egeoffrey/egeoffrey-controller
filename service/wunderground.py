@@ -204,12 +204,12 @@ class Wunderground(Service):
     def on_configuration(self,message):
         # we need house timezone
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone", "units", "language"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone", "units", "language"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
             self.units = message.get("units")
             self.language = message.get("language")
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["api_key"], message.get_data()): return
+            if not self.is_valid_module_configuration(["api_key"], message.get_data()): return False
             self.config = message.get_data()
 

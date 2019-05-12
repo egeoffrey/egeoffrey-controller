@@ -26,6 +26,7 @@ import sdk.utils.exceptions as exception
 class Config(Controller):
     # What to do when initializing    
     def on_init(self):
+        # TODO: when disconnect re-publish the configuration
         self.config_dir = os.getenv("MYHOUSE_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
         self.force_reload = int(os.getenv("MYHOUSE_CONFIG_FORCE_RELOAD", 0))
         self.old_index = {}
@@ -64,7 +65,7 @@ class Config(Controller):
     
     # publish a configuration file
     def publish_config(self, topic, content):
-        if topic != "__index": self.log_info("Publishing configuration "+topic)
+        if topic != "__index": self.log_debug("Publishing configuration "+topic)
         message = Message(self)
         message.recipient = "*/*"
         message.command = "CONF"
@@ -77,7 +78,7 @@ class Config(Controller):
     # delete a retained message from the bus
     def delete_config(self, topic):
         # send a null so to cancel retention
-        if topic != "__index": self.log_info("Removing configuration "+topic)
+        if topic != "__index": self.log_debug("Removing configuration "+topic)
         message = Message(self)
         message.recipient = "*/*"
         message.command = "CONF"

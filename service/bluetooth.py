@@ -98,5 +98,5 @@ class Bluetooth(Service):
     def on_configuration(self,message):
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["adapter"], message.get_data()): return
+            if not self.is_valid_module_configuration(["adapter"], message.get_data()): return False
             self.config = message.get_data()

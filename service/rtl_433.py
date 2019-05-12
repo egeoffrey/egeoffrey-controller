@@ -38,10 +38,11 @@ class Rtl_433(Service):
         self.date = None
         # require configuration before starting up
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("sensors/#")
         
     # What to do when running
     def on_start(self):
+        # request all sensors' configuration so to filter sensors of interest
+        self.add_configuration_listener("sensors/#")
         # kill rtl_433 if running
         sdk.utils.command.run("killall rtl_433")
         # run rtl_433 and handle the output
@@ -105,11 +106,11 @@ class Rtl_433(Service):
     def on_configuration(self,message):
         # we need house timezone
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["command"], message.get_data()): return
+            if not self.is_valid_module_configuration(["command"], message.get_data()): return False
             self.config = message.get_data()
         # sensors to register
         elif message.args.startswith("sensors/"):

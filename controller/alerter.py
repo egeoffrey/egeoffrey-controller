@@ -44,7 +44,6 @@ class Alerter(Controller):
         self.scheduler = Scheduler(self)
         # require module configuration before starting up
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("rules/#")
         
     # calculate a sub expression
     def evaluate_condition(self, a, operator, b):
@@ -231,7 +230,7 @@ class Alerter(Controller):
         
     # schedule a given rule for execution. Continues in run_rule() when rule is executed
     def add_rule(self, rule_id, rule):
-        self.log_info("Received configuration for rule "+rule_id)
+        self.log_debug("Received configuration for rule "+rule_id)
         # clean it up first
         self.remove_rule(rule_id)
         self.rules[rule_id] = rule
@@ -239,7 +238,7 @@ class Alerter(Controller):
         # no schedule set
         if "schedule" not in rule: return
         # schedule the rule execution
-        self.log_info("Scheduling "+rule_id+" with the following settings: "+str(rule["schedule"]))
+        self.log_debug("Scheduling "+rule_id+" with the following settings: "+str(rule["schedule"]))
         # "schedule" contains apscheduler settings for this sensor
         job = rule["schedule"]
         # add function to call and args
@@ -250,7 +249,7 @@ class Alerter(Controller):
         
     def remove_rule(self, rule_id):
         if rule_id in self.rules: 
-            self.log_info("Removing rule "+rule_id)
+            self.log_debug("Removing rule "+rule_id)
             del self.rules[rule_id]
             if rule_id in self.jobs: self.scheduler.remove_job(self.jobs[rule_id])
         
@@ -265,6 +264,8 @@ class Alerter(Controller):
         
     # What to do when running    
     def on_start(self):
+        # ask for all rules' configuration
+        self.add_configuration_listener("rules/#")
         # schedule to apply configured retention policies (every day just after 1am)
         job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.utils.numbers.randint(1,59)}
         self.scheduler.add_job(job)
@@ -306,7 +307,7 @@ class Alerter(Controller):
         # module's configuration
         if message.args == self.fullname:
             # ensure the configuration file contains all required settings
-            if not self.is_valid_module_configuration(["retention"], message.get_data()): return
+            if not self.is_valid_module_configuration(["retention"], message.get_data()): return False
             self.config = message.get_data()
         # add/remove rule
         elif message.args.startswith("rules/"):

@@ -198,5 +198,5 @@ class Slack(Interaction):
     def on_configuration(self, message):
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["bot_token", "bot_name", "channel"], message.get_data()): return
+            if not self.is_valid_module_configuration(["bot_token", "bot_name", "channel"], message.get_data()): return False
             self.config = message.get_data()

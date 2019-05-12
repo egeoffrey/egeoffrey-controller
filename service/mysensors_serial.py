@@ -51,7 +51,6 @@ class Mysensors_serial(Service):
         # require configuration before starting up
         self.add_configuration_listener("house", True)
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("sensors/#")
 
     # process an inbound message
     def process_inbound(self, node_id, child_id, command, ack, type, payload):
@@ -198,6 +197,8 @@ class Mysensors_serial(Service):
     # What to do when running
     def on_start(self):
         self.log_info("Starting mysensors serial gateway")
+        # request all sensors' configuration so to filter sensors of interest
+        self.add_configuration_listener("sensors/#")
         errors = 0
         while True:
             # connect to the configured gateway
@@ -268,11 +269,11 @@ class Mysensors_serial(Service):
     def on_configuration(self,message):
         # we need units
         if message.args == "house":
-            if not self.is_valid_module_configuration(["units"], message.get_data()): return
+            if not self.is_valid_module_configuration(["units"], message.get_data()): return False
             self.units = message.get("units")
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["port", "baud"], message.get_data()): return
+            if not self.is_valid_module_configuration(["port", "baud"], message.get_data()): return False
             self.config = message.get_data()
         # sensors to register
         elif message.args.startswith("sensors/"):

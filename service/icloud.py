@@ -99,5 +99,5 @@ class Icloud(Service):
     def on_configuration(self,message):
         # we need house timezone
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone", "units", "language"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone", "units", "language"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))

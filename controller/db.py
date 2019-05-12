@@ -57,7 +57,7 @@ class Db(Controller):
     
     # connect to the datase
     def connect(self):
-        while self.db_connected == False:
+        while not self.db_connected:
             try: 
                 self.log_debug("Connecting to database "+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"]))
                 self.db = redis.StrictRedis(host=self.config["hostname"], port=self.config["port"], db=self.config["database"])
@@ -66,7 +66,8 @@ class Db(Controller):
                     self.db_connected = True
             except Exception,e:
                 self.log_error("Unable to connect to "+self.config["hostname"]+":"+str(self.config["port"]))
-                time.sleep(10)
+                time.sleep(5)
+                if self.stopping: break
     
     # disconnect from the database
     def disconnect(self):
@@ -307,7 +308,7 @@ class Db(Controller):
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
                     # if the value is also the same, skip it
-                    self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+sdk.utils.strings.truncate(message.get("value")))
+                    self.log_info("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+sdk.utils.strings.truncate(message.get("value")))
                     return
                 else: 
                     # same timestamp but different value, remove the old value so to store the new one
@@ -446,12 +447,12 @@ class Db(Controller):
         if message.is_null: return
         # we need house timezone for querying the database
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
         # module's configuration
         elif message.args == self.fullname:            
             # ensure the configuration file contains all required settings
-            if not self.is_valid_module_configuration(["hostname", "port", "database"], message.get_data()): return
+            if not self.is_valid_module_configuration(["hostname", "port", "database"], message.get_data()): return False
             # if this is an updated configuration file, disconnect and reconnect
             if self.config: 
                 self.disconnect()

@@ -93,5 +93,5 @@ class Csv(Service):
     def on_configuration(self,message):
         # we need house timezone for querying the database
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))

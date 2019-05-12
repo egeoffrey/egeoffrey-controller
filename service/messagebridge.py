@@ -45,7 +45,6 @@ class Messagebridge(Service):
         self.date = None
         # require configuration before starting up
         self.add_configuration_listener(self.fullname, True)
-        self.add_configuration_listener("sensors/#")
         
     # initialize a sensor when just started or when in an unknown status
     def init(self, sensor):
@@ -79,6 +78,8 @@ class Messagebridge(Service):
         
     # What to do when running
     def on_start(self):
+        # request all sensors' configuration so to filter sensors of interest
+        self.add_configuration_listener("sensors/#")
         self.log_debug("listening for UDP datagrams on port "+str(self.config["port_listen"]))
         # bind to the network
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -161,11 +162,11 @@ class Messagebridge(Service):
     def on_configuration(self,message):
         # we need house timezone
         if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["port_listen", "port_send"], message.get_data()): return
+            if not self.is_valid_module_configuration(["port_listen", "port_send"], message.get_data()): return False
             self.config = message.get_data()
         # sensors to register
         elif message.args.startswith("sensors/"):

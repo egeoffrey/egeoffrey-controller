@@ -48,7 +48,6 @@ class Hub(Controller):
         # request required configuration files
         self.add_configuration_listener("controller/hub", True)
         self.add_configuration_listener("house", True)
-        self.add_configuration_listener("sensors/#")
         # subscribe for acknoledgments from the database for saved values
         self.add_inspection_listener("controller/db", "*/*", "SAVED", "#")
 
@@ -99,7 +98,7 @@ class Hub(Controller):
 
     # schedule a given sensor for execution
     def add_sensor(self, sensor_id, sensor):
-        self.log_info("Received configuration for sensor "+sensor_id)
+        self.log_debug("Received configuration for sensor "+sensor_id)
         # clean it up first
         self.remove_sensor(sensor_id)
         self.sensors[sensor_id] = sensor
@@ -121,7 +120,7 @@ class Hub(Controller):
     # delete a sensor
     def remove_sensor(self, sensor_id):
         if sensor_id in self.sensors: 
-            self.log_info("Removing sensor "+sensor_id)
+            self.log_debug("Removing sensor "+sensor_id)
             del self.sensors[sensor_id]
             # if already scheduled, stop it
             if sensor_id in self.jobs:
@@ -129,7 +128,9 @@ class Hub(Controller):
         
     # What to do when running
     def on_start(self):
-        # 1) schedule statistics calculation
+        # 1) ask for all sensor's configuration
+        self.add_configuration_listener("sensors/#")
+        # 2) schedule statistics calculation
         # TODO: what if different houses live in different timezones
         # every hour (just after the top of the hour) calculate for each sensor statistics of the previous hour
         job = {"func": self.calculate_stats, "trigger":"cron", "minute": 0, "second": sdk.utils.numbers.randint(1,59), "args": ["hour"]}
@@ -137,9 +138,9 @@ class Hub(Controller):
         # every day (just after midnight) calculate for each sensor statistics of the previous day (using hourly averages)
         job = {"func": self.calculate_stats, "trigger":"cron", "hour": 0, "minute": 0, "second": sdk.utils.numbers.randint(1,59), "args": ["day"]}
         self.scheduler.add_job(job)
-        # 2) schedule to apply configured retention policies (every day just after 1am)
+        # 3) schedule to apply configured retention policies (every day just after 1am)
         job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.utils.numbers.randint(1,59)}
-        # 3) start the scheduler 
+        # 4) start the scheduler 
         self.scheduler.start()
         # TODO: should be able to detect DST change and reschedule all the jobs
         
@@ -237,11 +238,11 @@ class Hub(Controller):
         if message.is_null and not message.args.startswith("sensors/"): return
         # module's configuration
         if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["poll_at_startup", "calculate", "retain"], message.get_data()): return
+            if not self.is_valid_module_configuration(["poll_at_startup", "calculate", "retain"], message.get_data()): return False
             self.config = message.get_data()
         # we need the house timezone to set the timestamp when not provided by the sensor
         elif message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return
+            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
         # add/remove sensor
         elif message.args.startswith("sensors/"):
