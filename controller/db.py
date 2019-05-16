@@ -66,7 +66,7 @@ class Db(Controller):
                     self.db_connected = True
             except Exception,e:
                 self.log_error("Unable to connect to "+self.config["hostname"]+":"+str(self.config["port"]))
-                time.sleep(5)
+                self.sleep(5)
                 if self.stopping: break
     
     # disconnect from the database

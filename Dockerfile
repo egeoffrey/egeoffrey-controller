@@ -9,7 +9,7 @@ FROM myhouseproject/myhouse-sdk-python:${ARCHITECTURE}-${MYHOUSE_SDK_VERSION}
 ENV MYHOUSE_LOGGING_LOCAL=0
 
 ### install module's dependencies
-RUN pip install fuzzywuzzy pyyaml apscheduler redis==2.10.6 rq==0.12.0
+RUN pip install fuzzywuzzy apscheduler redis==2.10.6 rq==0.12.0
 
 ### copy files into the image
 COPY . $WORKDIR

@@ -56,7 +56,7 @@ class Messagebridge(Service):
     # put a sensor to sleep
     def sleep(self, sensor):
         sleep_min = sensor["cycle_sleep_min"]*60
-        time.sleep(1)
+        self.sleep(1)
         self.tx(sensor, "SLEEP"+str(sleep_min).zfill(3)+"S", False)
         
     # transmit a message to a sensor

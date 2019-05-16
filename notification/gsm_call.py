@@ -12,7 +12,6 @@
 # OUTBOUND: 
 
 import serial
-import time
 from curses import ascii
 
 from sdk.module.notification import Notification
@@ -41,11 +40,11 @@ class Gsm_call(Notification):
     # make a call
     def make_call(self, modem, to):
         self.log_debug("Calling "+str(to))
-        time.sleep(2)
+        self.sleep(2)
         # place the call
         modem.write(b'ATD'+str(to)+'\r')
         # make the phone ring for the configured tie
-        time.sleep(self.duration)
+        self.sleep(self.duration)
         # hung up 
         modem.write(b'ATH\r')
         

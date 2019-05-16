@@ -12,7 +12,6 @@
 # OUTBOUND: 
 
 import OPi.GPIO as GPIO
-import time
 
 from sdk.module.notification import Notification
 
@@ -38,7 +37,7 @@ class Buzzer_raspi(Notification):
     def on_notify(self, severity, text):
         self.log_debug("activating buzzer on pin "+str(self.config["pin"])+" for "+str(self.config["duration"])+" seconds")
         GPIO.output(self.config["pin"], GPIO.HIGH)
-        time.sleep(self.config["duration"])
+        self.sleep(self.config["duration"])
         GPIO.output(self.config["pin"], GPIO.LOW)
 
      # What to do when receiving a new/updated configuration for this module    

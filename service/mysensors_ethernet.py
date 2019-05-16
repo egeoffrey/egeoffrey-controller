@@ -210,18 +210,18 @@ class Mysensors_serial(Service):
                 self.connected = self.connect()
             if not self.connected:
                 # something went wrong while connecting, sleep for a while and then try again
-                time.sleep(sleep_on_error)
+                self.sleep(sleep_on_error)
                 continue
             # manage the loop manually by reading every single message
             read = self.read()
             if read is None:
                 # something went wrong while reading the message, increase the error counter
                 errors = errors + 1
-                time.sleep(1)
+                self.sleep(1)
                 if errors > 10:
                     # too many consecutive errors, sleep for a while and then try to reconnect
                     self.log_error("Too many errors, will try reconnecting in a while")
-                    time.sleep(sleep_on_error)
+                    self.sleep(sleep_on_error)
                     self.connected = False
                 # go and read a new message
                 continue
@@ -230,11 +230,11 @@ class Mysensors_serial(Service):
             if parsed is None:
                 # something went wrong while parsing the message, increase the error counter
                 errors = errors + 1
-                time.sleep(1)
+                self.sleep(1)
                 if errors > 10:
                     # too many consecutive errors, sleep for a while and then try to reconnect
                     self.log_error("Too many errors, will try reconnecting in a while")
-                    time.sleep(sleep_on_error)
+                    self.sleep(sleep_on_error)
                     self.connected = False
                 # go and read a new message
                 continue

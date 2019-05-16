@@ -131,12 +131,12 @@ class Slack(Interaction):
             # init slack
             self.slack_init()
             if not self.slack_initialized: 
-                time.sleep(self.sleep_on_error)
+                self.sleep(self.sleep_on_error)
                 continue
             # connect to slack
             self.slack_connect()
             if not self.slack_connected: 
-                time.sleep(self.sleep_on_error)
+                self.sleep(self.sleep_on_error)
                 continue            
             # read a rtm stream
             try: 
@@ -145,7 +145,7 @@ class Slack(Interaction):
                 self.log_warning("unable to read from slack: "+exception.get(e))
                 self.slack_initialized = False
                 self.slack_connected = False
-                time.sleep(self.sleep_on_error)
+                self.sleep(self.sleep_on_error)
                 continue
             if output_list and len(output_list) > 0:
                 for output in output_list:
@@ -170,7 +170,7 @@ class Slack(Interaction):
                         })
                         self.send(message)
                         self.slack_typing(channel)
-            time.sleep(1)
+            self.sleep(1)
         
     # What to do when shutting down
     def on_stop(self):

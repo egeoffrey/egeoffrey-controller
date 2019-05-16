@@ -1,0 +1,11 @@
+package: myhouse-controller
+release: 1
+version: development
+git: myhouse-project/myhouse-controller
+modules:
+  - controller/logger
+  - controller/config
+  - controller/db
+  - controller/alerter
+  - controller/chatbot
+  - controller/hub

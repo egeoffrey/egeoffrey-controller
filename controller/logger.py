@@ -11,8 +11,6 @@
 # - LOG: print out a new log message
 # OUTBOUND: 
 
-from datetime import datetime
-
 from sdk.module.controller import Controller
 
 import sdk.utils.strings
@@ -36,11 +34,7 @@ class Logger(Controller):
         # TODO: find a way to prevent loops
         # print out the log message
         if message.command == "LOG":
-            # TODO: move this into sdk
-            severity = str(message.args.upper())
-            if severity == "WARNING": severity = "\033[93mWARNING\033[0m"
-            elif severity == "ERROR": severity = "\033[91mERROR\033[0m"
-            print "["+datetime.now().strftime("%Y-%m-%d %H:%M:%S")+"]["+message.house_id+"]["+str(message.sender)+"] "+severity+ ": "+str(message.get_data())
+            print sdk.utils.strings.format_log_line(message.args, message.sender, message.get_data())
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):

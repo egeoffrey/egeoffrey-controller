@@ -12,7 +12,6 @@
 # OUTBOUND: 
 
 import serial
-import time
 from curses import ascii
 
 from sdk.module.notification import Notification
@@ -40,16 +39,16 @@ class Gsm_sms(Notification):
     # send a sms message
     def send_sms(self, modem, to, text):
         self.log_debug("Sending SMS "+str(to))
-        time.sleep(2)
+        self.sleep(2)
         # switch to text mode
         modem.write(b'AT+CMGF=1\r')
-        time.sleep(2)
+        self.sleep(2)
         # set the recipient number
         modem.write(b'AT+CMGS="' + str(to).encode() + b'"\r')
-        time.sleep(2)
+        self.sleep(2)
         # send the message
         modem.write(text.encode())
-        time.sleep(1)
+        self.sleep(1)
         # end the message with ctrl+z
         modem.write(ascii.ctrl('z'))
         
