@@ -300,28 +300,44 @@ class Db(Controller):
         # save a timestamp:value pair in the database to the given key
         if message.command == "SAVE": 
             key = self.sensors_key+"/"+item_id
-            # if statistics to save the value to is explicit, set it
+            # 1) if statistics to save the value to is explicit, set it
             if message.has("statistics"): key = key+"/"+message.get("statistics")
-            # check if there is already something stored with the same timestamp
-            # TODO: ensure timestamp and value are provided
+            # 2) check if we need to apply any retention policy before saving the new value
+            if message.has("retain"):
+                retain = message.get("retain")
+                # if we have to keep up to "count" values, delete old values from the db
+                if "count" in retain:
+                    self.deletebyrank(key, 0, -retain["count"])
+                # if only measures with a newer timestamp than the latest can be added, apply the policy
+                if "new_only" in retain and retain["new_only"]:
+                    # retrieve the latest measure's timestamp
+                    last = self.range(key, -1, -1)
+                    if len(last) > 0:
+                        last_timestamp = last[0][0]
+                        # if the measure's timestamp is older or the same, skip it
+                        if message.get("timestamp") <= last_timestamp:
+                            self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") old event, ignoring "+key+": "+str(message.get("value")))
+                            return
+            # 3) heck if there is already something stored with the same timestamp
             old = self.rangebyscore(key, message.get("timestamp"), message.get("timestamp"))
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
                     # if the value is also the same, skip it
-                    self.log_info("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+sdk.utils.strings.truncate(message.get("value")))
+                    self.log_info("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+str(message.get("value")))
                     return
                 else: 
                     # same timestamp but different value, remove the old value so to store the new one
                     self.deletebyscore(key, message.get("timestamp"), message.get("timestamp"))
+            # 4) save the new value
             self.set(key, message.get("value"), message.get("timestamp"))
-            # Broadcast acknowledge value updated
+            # 5) broadcast acknowledge value updated
             ack_message = Message(self)
             ack_message.recipient = "*/*"
             ack_message.command = "SAVED"
             ack_message.args = item_id
             ack_message.set_data(message.get_data())
             self.send(ack_message)
-            # re-calculate the derived statistics for the hour/day
+            # 6) re-calculate the derived statistics for the hour/day
             if message.has("calculate"):
                 self.calculate(item_id, message.get("calculate"), "hour", self.date.hour_start(message.get("timestamp")), self.date.hour_end(message.get("timestamp")))
                 self.calculate(item_id, message.get("calculate"), "day", self.date.day_start(message.get("timestamp")), self.date.day_end(message.get("timestamp")))
@@ -356,9 +372,25 @@ class Db(Controller):
                 for stat in ["min","avg","max","rate","sum","count","count_unique"]:
                     self.delete(key+"/"+timeframe+"/"+stat)
                     self.log_debug("deleting key "+key+"/"+timeframe+"/"+stat)
+                    
+        # database statistics
+        elif message.command == "STATS":
+            output = []
+            keys = self.keys("*")
+            for key in sorted(keys):
+                if self.db.type(key) != "zset": continue
+                data = self.range(key, 1, 1)
+                start = data[0][0] if len(data) > 0 else ""
+                data = self.range(key, -1, -1)
+                end = data[0][0] if len(data) > 0 else ""
+                output.append([key, self.db.zcard(key), start, end])
+            message.reply()
+            message.set_data(output)
+            self.send(message)
         
         # query the database
         elif message.command.startswith("GET"):
+            # TODO: run service on request?
             key = self.sensors_key+"/"+item_id
             # 1) initialize query objecy. payload will be passed to the range* function, adding missing parameter key
             query = message.get_data().copy() if isinstance(message.get_data(), dict) else {}

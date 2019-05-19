@@ -31,7 +31,7 @@ class Config(Controller):
         self.log_debug("Configuration directory set to "+self.config_dir)
         self.force_reload = int(os.getenv("MYHOUSE_CONFIG_FORCE_RELOAD", 0))
         # keep track of the old config index
-        self.old_index = {}
+        self.old_index = None
         # set to true when clear config is running
         self.clear_config_running = False
         # receive manifest files with default config
@@ -97,18 +97,17 @@ class Config(Controller):
         # 1) build an index of the current configuration
         new_index = self.build_index()
         # 2) request the old index
-        self.old_index = {}
-        listener = self.add_configuration_listener("__index")
-        # sleep by continuously check if the index has been received
-        dec = 0
-        while (dec <= 20): 
-            if self.old_index: break
-            self.sleep(0.1)
-            dec = dec+1
-        self.remove_listener(listener)
+        if self.old_index is None: 
+            listener = self.add_configuration_listener("__index")
+            # sleep by continuously check if the index has been received
+            dec = 0
+            while (dec <= 20): 
+                if self.old_index: break
+                self.sleep(0.1)
+                dec = dec+1
         # 3) if there is no old configuration, better clearing up the entire retained configuration
         if not self.old_index or self.force_reload:
-            self.log_debug("clearing up retained configuration")
+            self.log_info("clearing up retained configuration")
             self.clear_config_running = True
             # subscribe for receiving all the configurations
             listener = self.add_configuration_listener("#") 
@@ -151,7 +150,7 @@ class Config(Controller):
         self.watchdog.restart_module(self.fullname)
     
     # save a new/updated configuration file
-    def save_config_file(self, file, data, wait_before_restart=0):
+    def save_config_file(self, file, data, restart_after_save=True):
         # ensure filename is valid
         if ".." in file:
             self.log_warning("invalid file "+file)
@@ -181,9 +180,9 @@ class Config(Controller):
         f.write(content)
         f.close()
         self.log_info("Saved configuration file "+file)
-        # reload the service (a bug in mqtt prevent from unsubscribing and subscribing to the same topic again)
-        if wait_before_restart > 0: self.sleep(wait_before_restart)
-        self.watchdog.restart_module(self.fullname)
+        # restart the module or just reload the configuration
+        if restart_after_save: self.watchdog.restart_module(self.fullname)
+        else: self.load_config()
     
     # What to do when running
     def on_start(self):
@@ -218,7 +217,7 @@ class Config(Controller):
                     file_content = entry[filename]
                     if not os.path.isfile(self.config_dir+os.sep+filename+".yml"):
                         self.log_info("Received default configuration file "+filename)
-                        self.save_config_file(filename, file_content, 3)
+                        self.save_config_file(filename, file_content, False)
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):

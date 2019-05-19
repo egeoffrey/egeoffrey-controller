@@ -176,14 +176,14 @@ class Hub(Controller):
             # TODO: make exception part of the class
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
         #TODO: ifnotexists?
-        # TODO: realtime_count, realtime_new_only
-        # 4) store the value by sending the message to the db
+        # 4) attach retention policies to be applied straight away
+        if "retain" in sensor and sensor["retain"] in self.config["retain"]:
+            message.set("retain", self.config["retain"][sensor["retain"]])
+        # 5) ask the db to store the value
         message.forward("controller/db")
         message.command = "SAVE"
         message.args = sensor_id
-        # TODO: handle suffix here
-        #message.payload["suffix"] = self.formats[sensor["format"]]["suffix"]
-        # 5) request to update hourly/daily stats
+        # 6) request to update hourly/daily stats
         if "calculate" in sensor and sensor["calculate"] in self.config["calculate"]:
             message.set("calculate", self.config["calculate"][sensor["calculate"]]["operations"])
         self.log_debug("["+sensor_id+"] requesting database to store: "+str(message.get_data()))
