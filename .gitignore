@@ -3,4 +3,4 @@
 *.save
 *~
 *.pyc
-sdk/
+sdk

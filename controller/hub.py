@@ -22,15 +22,15 @@ import sys
 reload(sys)  
 sys.setdefaultencoding('utf8')
 
-from sdk.module.controller import Controller
-from sdk.module.helpers.scheduler import Scheduler
-from sdk.module.helpers.message import Message
-from sdk.utils.datetimeutils import DateTimeUtils
+from sdk.python.module.controller import Controller
+from sdk.python.module.helpers.scheduler import Scheduler
+from sdk.python.module.helpers.message import Message
+from sdk.python.utils.datetimeutils import DateTimeUtils
 
-import sdk.utils.command
-import sdk.utils.numbers
-import sdk.utils.strings
-import sdk.utils.exceptions as exception
+import sdk.python.utils.command
+import sdk.python.utils.numbers
+import sdk.python.utils.strings
+import sdk.python.utils.exceptions as exception
 
 class Hub(Controller):
     # What to do when initializing    
@@ -133,13 +133,13 @@ class Hub(Controller):
         # 2) schedule statistics calculation
         # TODO: what if different houses live in different timezones
         # every hour (just after the top of the hour) calculate for each sensor statistics of the previous hour
-        job = {"func": self.calculate_stats, "trigger":"cron", "minute": 0, "second": sdk.utils.numbers.randint(1,59), "args": ["hour"]}
+        job = {"func": self.calculate_stats, "trigger":"cron", "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["hour"]}
         self.scheduler.add_job(job)
         # every day (just after midnight) calculate for each sensor statistics of the previous day (using hourly averages)
-        job = {"func": self.calculate_stats, "trigger":"cron", "hour": 0, "minute": 0, "second": sdk.utils.numbers.randint(1,59), "args": ["day"]}
+        job = {"func": self.calculate_stats, "trigger":"cron", "hour": 0, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["day"]}
         self.scheduler.add_job(job)
         # 3) schedule to apply configured retention policies (every day just after 1am)
-        job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.utils.numbers.randint(1,59)}
+        job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
         # 4) start the scheduler 
         self.scheduler.start()
         # TODO: should be able to detect DST change and reschedule all the jobs
@@ -164,14 +164,14 @@ class Hub(Controller):
             try:
                 orig_value = message.get("value")
                 command = self.config["post_processors"][sensor["post_processor"]].replace("%value%",str(orig_value))
-                message.set("value", sdk.utils.command.run(command))
+                message.set("value", sdk.python.utils.command.run(command))
                 self.log_debug("["+sensor_id+"] transforming "+str(orig_value)+" into "+str(message.get("value")))
             except Exception,e: 
                 self.log_error("["+sensor_id+"] Unable to post-process "+str(orig_value)+" by running "+str(command)+": "+exception.get(e))
         # 3) normalize the value according to its format
         try:
             # TODO: format does not exist anymore
-            message.set("value", sdk.utils.numbers.normalize(message.get("value"), sensor["format"]))
+            message.set("value", sdk.python.utils.numbers.normalize(message.get("value"), sensor["format"]))
         except Exception,e: 
             # TODO: make exception part of the class
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
@@ -229,7 +229,7 @@ class Hub(Controller):
             sensor = self.sensors[sensor_id]
             description = "("+sensor["description"]+")" if "description" in sensor else ""
             unit = sensor["unit"] if "unit" in sensor else ""
-            self.log_info("["+sensor_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") saving "+description+": "+sdk.utils.strings.truncate(message.get("value"),50)+unit)
+            self.log_info("["+sensor_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") saving "+description+": "+sdk.python.utils.strings.truncate(message.get("value"),50)+unit)
         
 
      # What to do when receiving a new/updated configuration for this module    

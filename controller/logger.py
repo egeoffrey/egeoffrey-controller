@@ -11,9 +11,9 @@
 # - LOG: print out a new log message
 # OUTBOUND: 
 
-from sdk.module.controller import Controller
+from sdk.python.module.controller import Controller
 
-import sdk.utils.strings
+import sdk.python.utils.strings
 
 class Logger(Controller):
     # What to do when initializing
@@ -34,7 +34,7 @@ class Logger(Controller):
         # TODO: find a way to prevent loops
         # print out the log message
         if message.command == "LOG":
-            print sdk.utils.strings.format_log_line(message.args, message.sender, message.get_data())
+            print sdk.python.utils.strings.format_log_line(message.args, message.sender, message.get_data())
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):

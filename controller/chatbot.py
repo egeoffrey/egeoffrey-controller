@@ -20,10 +20,10 @@ from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 import re
 
-from sdk.module.controller import Controller
-from sdk.module.helpers.message import Message
+from sdk.python.module.controller import Controller
+from sdk.python.module.helpers.message import Message
 
-import sdk.utils.numbers
+import sdk.python.utils.numbers
 
 class Chatbot(Controller):
     # What to do when initializing    
@@ -56,14 +56,14 @@ class Chatbot(Controller):
         
     # add a random prefix to a given text so to prentent a more dynamic interaction
     def add_prefix(self, text):
-        add_prefix_rnd = sdk.utils.numbers.randint(0, 100)
+        add_prefix_rnd = sdk.python.utils.numbers.randint(0, 100)
         if add_prefix_rnd < 50:
-            return self.vocabulary["prefix"][sdk.utils.numbers.randint(0, len(self.vocabulary["prefix"])-1)]+" "+text[0].lower() + text[1:]
+            return self.vocabulary["prefix"][sdk.python.utils.numbers.randint(0, len(self.vocabulary["prefix"])-1)]+" "+text[0].lower() + text[1:]
         return text
     
     # return a random wait message
     def get_wait_message(self):
-        return self.vocabulary["wait"][sdk.utils.numbers.randint(0,len(self.vocabulary["wait"])-1)]	
+        return self.vocabulary["wait"][sdk.python.utils.numbers.randint(0,len(self.vocabulary["wait"])-1)]	
     
     # evaluate how confident we are to respond with on of the items of the kb provided for the current request
     def evaluate(self, request, kb):
@@ -89,12 +89,12 @@ class Chatbot(Controller):
                 if score > self.not_understood_score:
                     actions = kb[keywords]
                     # pick up a random action and break
-                    action = actions[sdk.utils.numbers.randint(0,len(actions)-1)]
+                    action = actions[sdk.python.utils.numbers.randint(0,len(actions)-1)]
                     self.log_info("I've been asked by "+message.sender+" '"+request+"'. I am "+str(score)+"% sure to respond with '"+str(action)+"'")
                     break
             # if we have no good answer, just tell the sender
             if action is None:
-                action = self.vocabulary["not_understood"][sdk.utils.numbers.randint(0,len(self.vocabulary["not_understood"])-1)]
+                action = self.vocabulary["not_understood"][sdk.python.utils.numbers.randint(0,len(self.vocabulary["not_understood"])-1)]
                 self.log_info("I've been asked by "+message.sender+" '"+request+"' but I'm not sure enough so I'd respond with '"+str(action)+"'")
             # reponse is a static text
             if keywords in self.vocabulary["custom"] or action in self.vocabulary["not_understood"]:
@@ -140,7 +140,7 @@ class Chatbot(Controller):
                 type = "image"
                 message.set("description", sensor["description"] if "description" in sensor else "")
             else:
-                value_is = self.vocabulary["value_is"][sdk.utils.numbers.randint(0, len(self.vocabulary["value_is"])-1)]
+                value_is = self.vocabulary["value_is"][sdk.python.utils.numbers.randint(0, len(self.vocabulary["value_is"])-1)]
                 value = session["description"]+" "+value_is+" "+value
                 type = "text"
             message.set("type", type)
@@ -155,7 +155,7 @@ class Chatbot(Controller):
             message = session["message"]
             message.reply()
             message.set("type", "text")
-            value_is = self.vocabulary["value_is"][sdk.utils.numbers.randint(0, len(self.vocabulary["value_is"])-1)]
+            value_is = self.vocabulary["value_is"][sdk.python.utils.numbers.randint(0, len(self.vocabulary["value_is"])-1)]
             message.set("content", text)
             self.send(message)
             

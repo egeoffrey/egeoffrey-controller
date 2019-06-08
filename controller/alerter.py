@@ -19,11 +19,11 @@
 
 import re
 
-from sdk.module.controller import Controller
-from sdk.module.helpers.scheduler import Scheduler
-from sdk.module.helpers.message import Message
+from sdk.python.module.controller import Controller
+from sdk.python.module.helpers.scheduler import Scheduler
+from sdk.python.module.helpers.message import Message
 
-import sdk.utils.numbers
+import sdk.python.utils.numbers
 
 class Alerter(Controller):
     # What to do when initializing
@@ -52,7 +52,7 @@ class Alerter(Controller):
         if isinstance(b, list): b = b[0]
         # perform integrity checks
         if a is None or b is None: return None
-        if not sdk.utils.numbers.is_number(a) or not sdk.utils.numbers.is_number(b): return None
+        if not sdk.python.utils.numbers.is_number(a) or not sdk.python.utils.numbers.is_number(b): return None
         # calculate the expression
         # TODO: contains?
         if operator == "+": return float(a)+float(b)
@@ -77,10 +77,10 @@ class Alerter(Controller):
             elif operator == "!=":
                 if value == a: evaluation = False
             elif operator == ">":
-                if not sdk.utils.numbers.is_number(value) or not sdk.utils.numbers.is_number(a): return False
+                if not sdk.python.utils.numbers.is_number(value) or not sdk.python.utils.numbers.is_number(a): return False
                 if float(value) >= float(a): evaluation = False
             elif operator == "<":
-                if not sdk.utils.numbers.is_number(value) or not sdk.utils.numbers.is_number(a): return False
+                if not sdk.python.utils.numbers.is_number(value) or not sdk.python.utils.numbers.is_number(a): return False
                 if float(value) <= float(a): evaluation = False
             else: evaluation = False
         # return the evaluation
@@ -267,7 +267,7 @@ class Alerter(Controller):
         # ask for all rules' configuration
         self.add_configuration_listener("rules/#")
         # schedule to apply configured retention policies (every day just after 1am)
-        job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.utils.numbers.randint(1,59)}
+        job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
         self.scheduler.add_job(job)
         # start the scheduler 
         self.scheduler.start()

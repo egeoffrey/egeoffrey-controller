@@ -27,13 +27,13 @@ import time
 import redis
 import re
 
-from sdk.module.controller import Controller
-from sdk.module.helpers.message import Message
-from sdk.utils.datetimeutils import DateTimeUtils
+from sdk.python.module.controller import Controller
+from sdk.python.module.helpers.message import Message
+from sdk.python.utils.datetimeutils import DateTimeUtils
 
-import sdk.constants
-import sdk.utils.numbers
-import sdk.utils.strings
+import sdk.python.constants
+import sdk.python.utils.numbers
+import sdk.python.utils.strings
 
 class Db(Controller):
     # What to do when initializing    
@@ -85,10 +85,10 @@ class Db(Controller):
             value_string = entry[0].split(":",1)[1];
             if formatter is None:
                 # no formatter provided, guess the type
-                value = float(value_string) if sdk.utils.numbers.is_number(value_string) else str(value_string)
+                value = float(value_string) if sdk.python.utils.numbers.is_number(value_string) else str(value_string)
             else:
                 # formatter provided, normalize the value
-                value = sdk.utils.numbers.normalize(value_string, formatter)
+                value = sdk.python.utils.numbers.normalize(value_string, formatter)
             # normalize "None" in null
             if value == "None": value = None
             # prepare the output
@@ -122,7 +122,7 @@ class Db(Controller):
         return self.db.get(key)
 
     # get a range of values from the db based on the timestamp
-    # TODO: def rangebyscore(key, start=sdk.utils.recent(), end=sdk.utils.now(), withscores=True, milliseconds=False, format_date=False, formatter=None):
+    # TODO: def rangebyscore(key, start=sdk.python.utils.recent(), end=sdk.python.utils.now(), withscores=True, milliseconds=False, format_date=False, formatter=None):
     def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None):
         if start is None: start = self.date.now()-24*3600
         if end is None: end = self.date.now()
@@ -169,11 +169,11 @@ class Db(Controller):
         self.version = self.get_version()
         if version is None:
             # first installation
-            self.set_version(sdk.constants.version) 
+            self.set_version(sdk.python.constants.version) 
             return True
         else:
-            if version != sdk.constants.version: 
-                self.log_error("Expecting v"+str(sdk.constants.version)+" but found v"+str(version)+")")
+            if version != sdk.python.constants.version: 
+                self.log_error("Expecting v"+str(sdk.python.constants.version)+" but found v"+str(version)+")")
                 return False
         return True
 
@@ -211,36 +211,36 @@ class Db(Controller):
         min = avg = max = rate = sum = count = count_unique = "-"
         if "avg" in calculations:
             # calculate avg
-            avg = sdk.utils.numbers.avg(values)
+            avg = sdk.python.utils.numbers.avg(values)
             self.deletebyscore(key_to_write+"/avg", start, end)
             self.set(key_to_write+"/avg", avg, timestamp)
         if "min_max" in calculations:
             # calculate min
-            min = sdk.utils.numbers.min(values)
+            min = sdk.python.utils.numbers.min(values)
             self.deletebyscore(key_to_write+"/min", start, end)
             self.set(key_to_write+"/min", min, timestamp)
             # calculate max
-            max = sdk.utils.numbers.max(values)
+            max = sdk.python.utils.numbers.max(values)
             self.deletebyscore(key_to_write+"/max", start, end)
             self.set(key_to_write+"/max", max, timestamp)
         if "rate" in calculations:
             # calculate the rate of change
-            rate = sdk.utils.numbers.velocity(timestamps,values)
+            rate = sdk.python.utils.numbers.velocity(timestamps,values)
             self.deletebyscore(key_to_write+"/rate", start, end)
             self.set(key_to_write+"/rate", rate, timestamp)
         if "sum" in calculations:
                 # calculate the sum
-                sum = sdk.utils.numbers.sum(values)
+                sum = sdk.python.utils.numbers.sum(values)
                 self.deletebyscore(key_to_write+"/sum", start, end)
                 self.set(key_to_write+"/sum", sum, timestamp)
         if "count" in calculations:
                 # count the values
-                count = sdk.utils.numbers.count(values)
+                count = sdk.python.utils.numbers.count(values)
                 self.deletebyscore(key_to_write+"/count", start, end)
                 self.set(key_to_write+"/count", count, timestamp)
         if "count_unique" in calculations:
                 # count the unique values
-                count_unique = sdk.utils.numbers.count_unique(values)
+                count_unique = sdk.python.utils.numbers.count_unique(values)
                 self.deletebyscore(key_to_write+"/count_unique", start, end)
                 self.set(key_to_write+"/count_unique", count_unique, timestamp)
         self.log_debug("["+sensor_id+"] ("+self.date.timestamp2date(timestamp)+") updating summary of the "+group_by+" (min,avg,max,rate,sum,count,count_unique): ("+str(min)+","+str(avg)+","+str(max)+","+str(rate)+","+str(sum)+","+str(count)+","+str(count_unique)+")")
