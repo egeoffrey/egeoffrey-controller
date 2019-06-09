@@ -30,7 +30,7 @@ class Config(Controller):
         self.config_dir = os.getenv("MYHOUSE_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
         self.log_debug("Configuration directory set to "+self.config_dir)
         self.force_reload = int(os.getenv("MYHOUSE_CONFIG_FORCE_RELOAD", 0))
-        self.accept_default_config = True
+        self.accept_default_config = int(os.getenv("MYHOUSE_CONFIG_ACCEPT_DEFAULTS", 1))
         # keep track of the old config index
         self.old_index = None
         # status flags
@@ -148,6 +148,7 @@ class Config(Controller):
         # 6) publish/update the new index on the bus
         self.clear_config("__index")
         self.publish_config("__index", new_index)
+        self.old_index = new_index
         self.log_info("Configuration successfully published")
         self.load_config_running = False
         # if a reload was queued, reload the config

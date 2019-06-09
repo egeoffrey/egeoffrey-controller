@@ -1,5 +1,5 @@
 package: myhouse-controller
-revision: 3
+revision: 4
 version: development
 git: myhouse-project/myhouse-controller
 modules:
@@ -9,3 +9,4 @@ modules:
   - controller/alerter
   - controller/chatbot
   - controller/hub
+
