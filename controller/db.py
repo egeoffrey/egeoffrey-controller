@@ -26,14 +26,19 @@
 import time
 import redis
 import re
+import json
+import datetime
+from math import radians, cos, sin, asin, sqrt
 
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.message import Message
 from sdk.python.utils.datetimeutils import DateTimeUtils
+import sdk.python.utils.exceptions as exception
 
 import sdk.python.constants
 import sdk.python.utils.numbers
 import sdk.python.utils.strings
+
 
 class Db(Controller):
     # What to do when initializing    
@@ -51,6 +56,7 @@ class Db(Controller):
         self.db_connected = False
         # date/time helper
         self.date = None
+        self.house = None
         # request required configuration files
         self.add_configuration_listener("controller/db", True)
         self.add_configuration_listener("house", True)
@@ -243,6 +249,15 @@ class Db(Controller):
                 count_unique = sdk.python.utils.numbers.count_unique(values)
                 self.deletebyscore(key_to_write+"/count_unique", start, end)
                 self.set(key_to_write+"/count_unique", count_unique, timestamp)
+        # broadcast value updated message
+        message = Message(self)
+        message.recipient = "*/*"
+        message.command = "SAVED"
+        message.args = sensor_id
+        message.set("group_by", group_by)
+        message.set("timestamp", timestamp)
+        message.set("value", str(min)+","+str(avg)+","+str(max)+","+str(rate)+","+str(sum)+","+str(count)+","+str(count_unique))
+        self.send(message)
         self.log_debug("["+sensor_id+"] ("+self.date.timestamp2date(timestamp)+") updating summary of the "+group_by+" (min,avg,max,rate,sum,count,count_unique): ("+str(min)+","+str(avg)+","+str(max)+","+str(rate)+","+str(sum)+","+str(count)+","+str(count_unique)+")")
 
     # purge old sensors data from the database
@@ -335,7 +350,13 @@ class Db(Controller):
             ack_message.recipient = "*/*"
             ack_message.command = "SAVED"
             ack_message.args = item_id
-            ack_message.set_data(message.get_data())
+            ack_message.set("from_save", True)
+            ack_message.set("timestamp", message.get("timestamp"))
+            # TODO: truncate the value since not fully used
+            ack_message.set("value", message.get("value"))
+            if message.has("statistics"):
+                ack_message.set("group_by", message.get("statistics").split("/")[0])
+                ack_message.set("statistics", message.get("statistics"))
             self.send(ack_message)
             # 6) re-calculate the derived statistics for the hour/day
             if message.has("calculate"):
@@ -449,24 +470,64 @@ class Db(Controller):
                     if i < len(data_max):
                         if (isinstance(item,list)): data[i].append(data_max[i])
                         else: data.append(data_max[i])
+            # elapsed since the measure was taken is requested, calculate the time difference in seconds
             if message.command == "GET_ELAPSED":
-                # calculate the time difference
                 if len(data) == 0: 
                     data = []
                 else: 
                     time_diff = (self.date.now() - data[0][0])/60
                     data = [time_diff]
+            # the timestamp of the measure is requested, return it
             elif message.command == "GET_TIMESTAMP":
                 if len(data) == 0: data = []
                 else: data = [data[0][0]]
+            # the distance of the measure from this house is requested
             elif message.command == "GET_DISTANCE":
-                # TODO: how to handle distance
-                pass
+                if len(data) == 0: return []
+                # TODO: handle multiple entries
+                try:
+                    position = json.loads(data[0])
+                except Exception,e: 
+                    self.log_warning("unable to get the distance from an invalid position: "+str(data)+" - "+exception.get(e))
+                    return
+                # convert decimal degrees to radians 
+                lon1, lat1, lon2, lat2 = map(radians, [position["longitude"], position["latitude"], self.house["longitude"], self.house["latitude"]])
+                # haversine formula 
+                dlon = lon2 - lon1 
+                dlat = lat2 - lat1 
+                a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                c = 2 * asin(sqrt(a)) 
+                distance = 6367 * c
+                if self.house["units"] == "imperial": distance = distance/1.609
+                data = [int(distance)]
+            # the timestamp of the measure is requested, return it
+            elif message.command == "GET_SCHEDULE":
+                if len(data) != 1: return []
+                # the calendar string is at position 0
+                try:
+                    calendar = json.loads(data[0])
+                except Exception,e: 
+                    self.log_warning("unable to parse calendar's data: "+str(data)+" - "+exception.get(e))
+                    return []
+                # the list of events is at position 1
+                if len(calendar) != 2: return []
+                events = json.loads(calendar[1])
+                found = False
+                for event in events:
+                        # generate the timestamp of start and end date
+                        start_date = datetime.datetime.strptime(event["start_date"],"%Y-%m-%dT%H:%M:%S.000Z")
+                        start_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(start_date.timetuple()))))
+                        end_date = datetime.datetime.strptime(event["end_date"],"%Y-%m-%dT%H:%M:%S.000Z")
+                        end_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(end_date.timetuple()))))
+                        now_ts = self.date.now()
+                        # check if we are within an event
+                        if now_ts > start_timestamp and now_ts < end_timestamp: 
+                            found = True
+                            data = [event["text"]]
+                if not found: data = [""]
+            # a count of the measures taken during the timeframe is requested,  count the values
             elif message.command == "GET_COUNT":
                 data = [len(data)]
-            else:
-                # TODO: calendar, position, image
-                pass
             # 8) attach the result to the message payload
             message.set("data", data)
             # 10) send the response back
@@ -481,6 +542,7 @@ class Db(Controller):
         if message.args == "house":
             if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
+            self.house = message.get_data()
         # module's configuration
         elif message.args == self.fullname:            
             # ensure the configuration file contains all required settings

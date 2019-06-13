@@ -215,6 +215,7 @@ class Config(Controller):
         self.load_config()
         # receive manifest files with default config
         self.add_broadcast_listener("+/+", "MANIFEST", "#")
+        # TODO: how to upgrade config
         
     # What to do when shutting down
     def on_stop(self):
@@ -228,8 +229,7 @@ class Config(Controller):
     def on_message(self, message):
         # update/save a configuration file
         if message.command == "SAVE":
-            #self.save_config_file(message.args, message.get_data())
-            self.save_config_file(filename, file_content)
+            self.save_config_file(message.args, message.get_data())
         # delete a configuration file
         elif message.command == "DELETE":
             self.delete_config_file(message.args)
@@ -251,6 +251,7 @@ class Config(Controller):
                         self.log_warning("unable to save "+filename+", invalid YAML format: "+str(file_content)+" - "+exception.get(e))
                         return
                     # ignore existing files whose content hasn't changed
+                    # TODO: do not overwrite existing files
                     if self.old_index is not None and filename in self.old_index and self.old_index[filename]["hash"] == self.get_hash(content): 
                         continue
                     # save the new/updated default configuration

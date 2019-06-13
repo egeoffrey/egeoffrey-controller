@@ -48,7 +48,7 @@ class Hub(Controller):
         # request required configuration files
         self.add_configuration_listener("controller/hub", True)
         self.add_configuration_listener("house", True)
-        # subscribe for acknoledgments from the database for saved values
+        # subscribe for acknowledgments from the database for saved values
         self.add_inspection_listener("controller/db", "*/*", "SAVED", "#")
 
    
@@ -225,11 +225,14 @@ class Hub(Controller):
                 self.send(message)
         # the database just stored a new value, print it out since we have the sensor's context
         elif message.sender == "controller/db" and message.command == "SAVED":
-            sensor_id = message.args
-            sensor = self.sensors[sensor_id]
-            description = "("+sensor["description"]+")" if "description" in sensor else ""
-            unit = sensor["unit"] if "unit" in sensor else ""
-            self.log_info("["+sensor_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") saving "+description+": "+sdk.python.utils.strings.truncate(message.get("value"),50)+unit)
+            # catch only new values saved, not aggregations run
+            if message.has("from_save") and message.get("from_save"):
+                sensor_id = message.args
+                sensor = self.sensors[sensor_id]
+                description = "("+sensor["description"]+")" if "description" in sensor else ""
+                unit = sensor["unit"] if "unit" in sensor else ""
+                statistics = " ("+message.get("statistics")+")" if message.has("statistics") else ""
+                self.log_info("["+sensor_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") saving "+description+statistics+": "+sdk.python.utils.strings.truncate(message.get("value"), 50)+unit)
         
 
      # What to do when receiving a new/updated configuration for this module    

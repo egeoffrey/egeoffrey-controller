@@ -2,3 +2,5 @@ language: en
 name: House Name
 timezone: 1
 units: metric
+latitude: 48.85
+longitude: 2.35
