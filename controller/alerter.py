@@ -17,10 +17,12 @@
 # - */* NOTIFY: notify output modules
 # - controller/db PURGE_ALERTS: periodically purge old alerts from db
 
-import sys  
+# TODO: move this into sdk
+import sys 
 reload(sys)  
 sys.setdefaultencoding('utf8')
 import re
+import time
 
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
@@ -43,7 +45,7 @@ class Alerter(Controller):
         self.on_demand = {}
         # for rule without a schedule, map sensor_id with an array of rules to run upon a change
         self.triggers = {}
-        # TODO: map rule_id with the timestamp it run last so to avoid running it too frequently
+        # map rule_id with the timestamp it run last so to avoid running it too frequently
         self.last_run = {}
         # map rule_id with scheduler job_id
         self.jobs = {}
@@ -112,6 +114,9 @@ class Alerter(Controller):
     # retrieve the values of all the configured variables of the given rule_id. Continues in on_messages() when receiving values from db
     def run_rule(self, rule_id):
         rule = self.rules[rule_id]
+        # ensure this rule is not run too often to avoid loops
+        if rule_id in self.last_run and time.time() - self.last_run[rule_id] < 3: return
+        self.last_run[rule_id] = time.time()
         # for each sensor we need the value which will be asked to the db module. Keep track of both values and requests
         self.requests[rule_id] = {}
         self.values[rule_id] = {}
@@ -324,7 +329,7 @@ class Alerter(Controller):
         message = Message(self)
         message.recipient = "controller/db"
         message.command = "PURGE_ALERTS"
-        message.set_data("retention")
+        message.set_data(self.config["retention"])
         self.send(message)
         
     # What to do when running    

@@ -23,6 +23,9 @@
 # OUTBOUND: 
 # - */* SAVED: notify a new measure has been saved
 
+import sys 
+reload(sys)  
+sys.setdefaultencoding('utf8')
 import time
 import redis
 import re
@@ -47,6 +50,7 @@ class Db(Controller):
         self.root_key = "myHouse"
         self.sensors_key = self.root_key+"/sensors"
         self.alerts_key = self.root_key+"/alerts"
+        self.logs_key = self.root_key+"/logs"
         self.version_key = self.root_key+"/version"
         self.query_debug = False
         # module's configuration
@@ -108,13 +112,13 @@ class Db(Controller):
         return self.db.keys(key)
 
     # save a value to the db
-    def set(self, key, value, timestamp):
+    def set(self, key, value, timestamp, log=True):
         if timestamp is None: 
-            self.log_warning("no timestamp provided for key "+key)
+            if log: self.log_warning("no timestamp provided for key "+key)
             return 
         # zadd with the scorecore	
         value = str(timestamp)+":"+str(value)
-        if self.query_debug: self.log_debug("zadd "+key+" "+str(timestamp)+" "+str(value))
+        if self.query_debug and log: self.log_debug("zadd "+key+" "+str(timestamp)+" "+str(value))
         return self.db.zadd(key, timestamp, value)
 
     # set a single value into the db
@@ -260,42 +264,6 @@ class Db(Controller):
         self.send(message)
         self.log_debug("["+sensor_id+"] ("+self.date.timestamp2date(timestamp)+") updating summary of the "+group_by+" (min,avg,max,rate,sum,count,count_unique): ("+str(min)+","+str(avg)+","+str(max)+","+str(rate)+","+str(sum)+","+str(count)+","+str(count_unique)+")")
 
-    # purge old sensors data from the database
-    def purge_sensor(self, sensor_id, policies):
-        total = 0
-        # set the base database key for the sensor
-        key = self.sensors_key+"/"+sensor_id
-        # define which stat to purge for each dataset
-        targets = {
-            "data": [""],
-            "hourly": ["/hour/min","/hour/avg","/hour/max","/hour/rate"],
-            "daily": ["/day/min","/day/avg","/day/max","/day/rate"],
-        }
-        # for each dataset, purge the associated subkeys
-        for dataset, subkeys in targets.iteritems():
-            retention = policies[dataset]
-            if retention == 0: continue # keep data forever
-            # for each stat to purge
-            for subkey in subkeys:
-                key = key+subkey
-                if self.exists(key):
-                    # if the key exists, delete old data
-                    deleted = self.deletebyscore(key, "-inf", self.date.now() - retention*86400)
-                    self.log_debug("["+sensor_id+"] deleting from "+key+" "+str(deleted)+" old items")
-                    total = total + deleted
-        if total > 0: self.log_info("["+sensor_id+"] deleted "+str(total)+" old values")
-
-    # purge old alerts data from the database
-    def purge_alerts(self, days):
-        total = 0
-        for severity in ['alert','warning','info']:
-            key = self.alerts_key+"/"+severity
-            if self.exists(key):
-                deleted = self.deletebyscore(key,"-inf",self.date.now()-days*86400)
-                self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
-                total = total + deleted
-        if total > 0: self.log_info("deleted "+str(total)+" old alerts")
-        
     # What to do when running
     def on_start(self):
         # connect to the database
@@ -353,7 +321,7 @@ class Db(Controller):
             ack_message.set("from_save", True)
             ack_message.set("timestamp", message.get("timestamp"))
             # TODO: truncate the value since not fully used
-            ack_message.set("value", message.get("value"))
+            ack_message.set("value", sdk.python.utils.strings.truncate(message.get("value"), 50))
             if message.has("statistics"):
                 ack_message.set("group_by", message.get("statistics").split("/")[0])
                 ack_message.set("statistics", message.get("statistics"))
@@ -368,6 +336,11 @@ class Db(Controller):
             key = self.alerts_key+"/"+item_id
             self.set(key, message.get_data(), self.date.now())
             self.log_debug("["+item_id+"] saving alert '"+message.get_data()+"'")
+            
+        # save log
+        elif message.command == "SAVE_LOG":
+            key = self.logs_key+"/"+item_id
+            self.set(key, message.get_data(), self.date.now(), False)
         
         # calculate hourly statistics for the requested sensor
         elif message.command == "CALC_HOUR_STATS":
@@ -378,10 +351,54 @@ class Db(Controller):
         
         # apply sensors retention policies
         elif message.command == "PURGE_SENSOR":
-            self.purge_sensor(item_id,message.get_data())
+            sensor_id = item_id
+            policies = message.get_data()
+            total = 0
+            # set the base database key for the sensor
+            key = self.sensors_key+"/"+sensor_id
+            # define which stat to purge for each dataset
+            targets = {
+                "data": [""],
+                "hourly": ["/hour/min","/hour/avg","/hour/max","/hour/rate"],
+                "daily": ["/day/min","/day/avg","/day/max","/day/rate"],
+            }
+            # for each dataset, purge the associated subkeys
+            for dataset, subkeys in targets.iteritems():
+                retention = policies[dataset]
+                if retention == 0: continue # keep data forever
+                # for each stat to purge
+                for subkey in subkeys:
+                    key = key+subkey
+                    if self.exists(key):
+                        # if the key exists, delete old data
+                        deleted = self.deletebyscore(key, "-inf", self.date.now() - retention*86400)
+                        self.log_debug("["+sensor_id+"] deleting from "+key+" "+str(deleted)+" old items")
+                        total = total + deleted
+            if total > 0: self.log_info("["+sensor_id+"] deleted "+str(total)+" old values")
+            
         # apply alerts retention policies
         elif message.command == "PURGE_ALERTS":
-            self.purge_alerts(message.get_data())
+            days = message.get_data()
+            total = 0
+            for severity in ["info", "warning", "alert"]:
+                key = self.alerts_key+"/"+severity
+                if self.exists(key):
+                    deleted = self.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                    self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
+                    total = total + deleted
+            if total > 0: self.log_info("deleted "+str(total)+" old alerts")
+
+        # apply log retention policies
+        elif message.command == "PURGE_LOGS":
+            days = message.get_data()
+            total = 0
+            for severity in ["debug", "info", "warning", "error"]:
+                key = self.logs_key+"/"+severity
+                if self.exists(key):
+                    deleted = self.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                    self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
+                    total = total + deleted
+            if total > 0: self.log_info("deleted "+str(total)+" old logs")
         
         # delete a sensor from the database
         elif message.command == "DELETE_SENSOR":
@@ -389,10 +406,34 @@ class Db(Controller):
             self.log_info("deleting from the database sensor "+item_id)
             self.delete(key)
             self.log_debug("deleting key "+key)
-            for timeframe in ["hour","day"]:
-                for stat in ["min","avg","max","rate","sum","count","count_unique"]:
+            for timeframe in ["hour", "day"]:
+                for stat in ["min", "avg", "max", "rate", "sum", "count", "count_unique"]:
                     self.delete(key+"/"+timeframe+"/"+stat)
                     self.log_debug("deleting key "+key+"/"+timeframe+"/"+stat)
+                    
+        # return the latest logs
+        elif message.command == "TAIL_LOGS":
+            max_lines = 500
+            days = message.get_data()
+            key = self.logs_key+"/"+item_id
+            if not self.exists(key): return
+            data = self.rangebyscore(key, self.date.now()-days*86400, self.date.now(), withscores=True)
+            if len(data) > max_lines: data = data[-max_lines:]
+            message.reply()
+            message.set_data(data)
+            self.send(message)
+            
+        # return the latest alerts
+        elif message.command == "TAIL_ALERTS":
+            max_lines = 500
+            days = message.get_data()
+            key = self.alerts_key+"/"+item_id
+            if not self.exists(key): return
+            data = self.rangebyscore(key, self.date.now()-days*86400, self.date.now(), withscores=True)
+            if len(data) > max_lines: data = data[-max_lines:]
+            message.reply()
+            message.set_data(data)
+            self.send(message)
                     
         # database statistics
         elif message.command == "STATS":
@@ -404,7 +445,8 @@ class Db(Controller):
                 start = data[0][0] if len(data) > 0 else ""
                 data = self.range(key, -1, -1)
                 end = data[0][0] if len(data) > 0 else ""
-                output.append([key, self.db.zcard(key), start, end])
+                value = data[0][1] if len(data) > 0 else ""
+                output.append([key, self.db.zcard(key), start, end, sdk.python.utils.strings.truncate(value, 300)])
             message.reply()
             message.set_data(output)
             self.send(message)
@@ -436,7 +478,6 @@ class Db(Controller):
                     query["end"] = self.date.now() if action == "last" else self.date.now() + int(value)
                     query["withscores"] = True
                     query["milliseconds"] = True
-
                 del query["timeframe"]
             # 3) if start and/or end are timestamps, use rangebyscore, otherwise use range
             if "start" in query and query["start"] > 1000:
