@@ -126,38 +126,39 @@ class Alerter(Controller):
             self.requests[rule_id][repeat_for_i] = []
             self.values[rule_id][repeat_for_i] = {}
         # for every constant, store its value as is so will be ready for the evaluation
-        for repeat_for_i in repeat_for:
-            if "constants" in rule:
+        if "constants" in rule:
+            for repeat_for_i in repeat_for:
                 for constant_id, value in rule["constants"].iteritems():
                     self.values[rule_id][repeat_for_i][constant_id] = value
         # for every variable, retrieve its latest value to the database
-        for i in range(len(repeat_for)):
-            repeat_for_i = repeat_for[i]
-            for variable_id, variable in rule["variables"].iteritems():
-                # a variable can contain %i% which is replaced with every item of "for"
-                variable_i = variable.replace("%i%", repeat_for_i)
-                # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
-                if match is None: continue
-                # query db for the data
-                command, start, end, sensor_id = match.groups()
-                message = Message(self)
-                message.recipient = "controller/db"
-                message.command = message.command = "GET_"+command if command != "" else "GET"
-                message.args = sensor_id
-                message.set("start", -1) if start is None else start
-                message.set("end", -1) if end is None else end
-                self.sessions.register(message, {
-                    "rule_id": rule_id,
-                    "variable_id": variable_id,
-                    "%i%": repeat_for_i,
-                })
-                self.log_debug("["+rule_id+"]["+variable_id+"] requesting db for "+message.command+" "+message.args+": "+str(message.get_data()))
-                self.send(message)
-                # keep track of the requests so that once all the data will be available the rule will be evaluated
-                self.requests[rule_id][repeat_for_i].append(message.get_request_id())
-            # add a placeholder at the end to ensure the rule is not evaluated before all the definitions are retrieved
-            self.requests[rule_id][repeat_for_i].append("LAST")
+        if "variables" in rule:
+            for i in range(len(repeat_for)):
+                repeat_for_i = repeat_for[i]
+                for variable_id, variable in rule["variables"].iteritems():
+                    # a variable can contain %i% which is replaced with every item of "for"
+                    variable_i = variable.replace("%i%", repeat_for_i)
+                    # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
+                    match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
+                    if match is None: continue
+                    # query db for the data
+                    command, start, end, sensor_id = match.groups()
+                    message = Message(self)
+                    message.recipient = "controller/db"
+                    message.command = message.command = "GET_"+command if command != "" else "GET"
+                    message.args = sensor_id
+                    message.set("start", -1) if start is None else start
+                    message.set("end", -1) if end is None else end
+                    self.sessions.register(message, {
+                        "rule_id": rule_id,
+                        "variable_id": variable_id,
+                        "%i%": repeat_for_i,
+                    })
+                    self.log_debug("["+rule_id+"]["+variable_id+"] requesting db for "+message.command+" "+message.args+": "+str(message.get_data()))
+                    self.send(message)
+                    # keep track of the requests so that once all the data will be available the rule will be evaluated
+                    self.requests[rule_id][repeat_for_i].append(message.get_request_id())
+                # add a placeholder at the end to ensure the rule is not evaluated before all the definitions are retrieved
+                self.requests[rule_id][repeat_for_i].append("LAST")
 
     # evaluate the conditions of a rule, once all the variables have been collected
     def evaluate_rule(self, rule_id, repeat_for_i):
@@ -295,19 +296,20 @@ class Alerter(Controller):
         # rule will be run every time one of the variables will change value
         else:
             # when "for" is used, the same rule is run independently for each item 
-            repeat_for = rule["for"] if "for" in rule else ["_default_"]
-            for repeat_for_i in repeat_for:
-                for variable_id, variable in rule["variables"].iteritems():
-                    # a variable can contain %i% which is replaced with every item of "for"
-                    variable_i = variable.replace("%i%", repeat_for_i)
-                    # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                    match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
-                    if match is None: return
-                    command, start, end, sensor_id = match.groups()
-                    # add the sensor_id to the triggers so the rule will be run upon any change
-                    if sensor_id not in self.triggers: 
-                        self.triggers[sensor_id] = []
-                    self.triggers[sensor_id].append(rule_id)
+            if "variables" in rule:
+                repeat_for = rule["for"] if "for" in rule else ["_default_"]
+                for repeat_for_i in repeat_for:
+                    for variable_id, variable in rule["variables"].iteritems():
+                        # a variable can contain %i% which is replaced with every item of "for"
+                        variable_i = variable.replace("%i%", repeat_for_i)
+                        # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
+                        match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
+                        if match is None: return
+                        command, start, end, sensor_id = match.groups()
+                        # add the sensor_id to the triggers so the rule will be run upon any change
+                        if sensor_id not in self.triggers: 
+                            self.triggers[sensor_id] = []
+                        self.triggers[sensor_id].append(rule_id)
     
     # remove a rule
     def remove_rule(self, rule_id):

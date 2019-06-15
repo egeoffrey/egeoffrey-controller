@@ -531,6 +531,9 @@ class Db(Controller):
                 except Exception,e: 
                     self.log_warning("unable to get the distance from an invalid position: "+str(data)+" - "+exception.get(e))
                     return
+                if "longitude" not in position or "latitude" not in position: 
+                    self.log_warning("invalid position provided: "+str(position))
+                    return
                 # convert decimal degrees to radians 
                 lon1, lat1, lon2, lat2 = map(radians, [position["longitude"], position["latitude"], self.house["longitude"], self.house["latitude"]])
                 # haversine formula 

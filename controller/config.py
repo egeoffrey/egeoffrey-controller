@@ -244,16 +244,14 @@ class Config(Controller):
             for entry in default_config:
                 for filename in entry:
                     file_content = entry[filename]
+                    # do not overwrite existing files since the user may have changed default values
+                    if os.path.isfile(self.config_dir+os.sep+filename+".yml"): continue
                     # ensure the file is in the correct format
                     try:
                         content = yaml.safe_dump(file_content, default_flow_style=False)
                     except Exception,e: 
                         self.log_warning("unable to save "+filename+", invalid YAML format: "+str(file_content)+" - "+exception.get(e))
                         return
-                    # ignore existing files whose content hasn't changed
-                    # TODO: do not overwrite existing files
-                    if self.old_index is not None and filename in self.old_index and self.old_index[filename]["hash"] == self.get_hash(content): 
-                        continue
                     # save the new/updated default configuration
                     self.log_debug("Received new default configuration file "+filename)
                     # TODO: wait a bit before reloading

@@ -26,6 +26,7 @@ import sdk.python.utils.numbers
 class Logger(Controller):
     # What to do when initializing
     def on_init(self):
+        # TODO: log to file, allow to enable different logging
         # maximum log messages per second to print
         self.max_msg_rate = 5
         self.msg_count = 0
