@@ -1,5 +1,5 @@
 package: myhouse-controller
-revision: 7
+revision: 8
 version: development
 git: myhouse-project/myhouse-controller
 modules:

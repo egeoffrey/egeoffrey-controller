@@ -58,7 +58,7 @@ class Logger(Controller):
         message.recipient = "controller/db"
         message.command = "SAVE_LOG"
         message.args = log_message.args
-        message.set_data("["+log_message.sender+"] "+log_message.get_data())
+        message.set_data("["+log_message.sender+"] "+str(log_message.get_data()))
         self.send(message)
         
     # apply configured retention policies for saved logs
