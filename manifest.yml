@@ -2,7 +2,7 @@ package: myhouse-controller
 revision: 9
 version: development
 github: myhouse-project/myhouse-controller
-dockerhub: myhouse-project/myhouse-controller
+dockerhub: myhouseproject/myhouse-controller
 container_config:
   volumes:
     - ./data/config:/config
