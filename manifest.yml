@@ -1,7 +1,13 @@
 package: myhouse-controller
-revision: 8
+revision: 9
 version: development
-git: myhouse-project/myhouse-controller
+github: myhouse-project/myhouse-controller
+dockerhub: myhouse-project/myhouse-controller
+container_config:
+  volumes:
+    - ./data/config:/config
+description: The myHouse controller manages the configuration of all the other modules, orchestrate sensors and run alerting rules
+tags: controller
 modules:
   - controller/logger
   - controller/config
