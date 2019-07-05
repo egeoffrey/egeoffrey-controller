@@ -133,16 +133,20 @@ class Db(Controller):
 
     # get a range of values from the db based on the timestamp
     # TODO: def rangebyscore(key, start=sdk.python.utils.recent(), end=sdk.python.utils.now(), withscores=True, milliseconds=False, format_date=False, formatter=None):
-    def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None):
+    def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if start is None: start = self.date.now()-24*3600
         if end is None: end = self.date.now()
         if self.query_debug: self.log_debug("zrangebyscore "+key+" "+str(start)+" "+str(end))
-        return self.normalize_dataset(self.db.zrangebyscore(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
+        data = self.normalize_dataset(self.db.zrangebyscore(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
+        if max_items is not None and len(data) > max_items: data = data[-max_items:]
+        return data
         
     # get a range of values from the db
-    def range(self, key,start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None):
+    def range(self, key,start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if self.query_debug: self.log_debug("zrange "+key+" "+str(start)+" "+str(end))
-        return self.normalize_dataset(self.db.zrange(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
+        data = self.normalize_dataset(self.db.zrange(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
+        if max_items is not None and len(data) > max_items: data = data[-max_items:]
+        return data
 
     # delete a key
     def delete(self, key):
@@ -410,31 +414,7 @@ class Db(Controller):
                 for stat in ["min", "avg", "max", "rate", "sum", "count", "count_unique"]:
                     self.delete(key+"/"+timeframe+"/"+stat)
                     self.log_debug("deleting key "+key+"/"+timeframe+"/"+stat)
-                    
-        # return the latest logs
-        elif message.command == "TAIL_LOGS":
-            max_lines = 500
-            days = message.get_data()
-            key = self.logs_key+"/"+item_id
-            if not self.exists(key): return
-            data = self.rangebyscore(key, self.date.now()-days*86400, self.date.now(), withscores=True)
-            if len(data) > max_lines: data = data[-max_lines:]
-            message.reply()
-            message.set_data(data)
-            self.send(message)
             
-        # return the latest alerts
-        elif message.command == "TAIL_ALERTS":
-            max_lines = 500
-            days = message.get_data()
-            key = self.alerts_key+"/"+item_id
-            if not self.exists(key): return
-            data = self.rangebyscore(key, self.date.now()-days*86400, self.date.now(), withscores=True)
-            if len(data) > max_lines: data = data[-max_lines:]
-            message.reply()
-            message.set_data(data)
-            self.send(message)
-                    
         # database statistics
         elif message.command == "STATS":
             output = []
@@ -454,9 +434,15 @@ class Db(Controller):
         # query the database
         elif message.command.startswith("GET"):
             # TODO: run service on request?
-            key = self.sensors_key+"/"+item_id
             # 1) initialize query objecy. payload will be passed to the range* function, adding missing parameter key
             query = message.get_data().copy() if isinstance(message.get_data(), dict) else {}
+            # select which area of the database to query (default to sensors)
+            scope = self.sensors_key
+            if "scope" in query:
+                if query["scope"] == "logs": scope = self.logs_key
+                if query["scope"] == "alerts": scope = self.alerts_key
+                del query["scope"]
+            key = scope+"/"+item_id
             query["key"] = key
             # 2) handle timeframe requests, calculate start and end
             if "timeframe" in query:

@@ -159,6 +159,9 @@ class Alerter(Controller):
                     self.requests[rule_id][repeat_for_i].append(message.get_request_id())
                 # add a placeholder at the end to ensure the rule is not evaluated before all the definitions are retrieved
                 self.requests[rule_id][repeat_for_i].append("LAST")
+        # if the rule requires no data to retrieve, just evaluate it
+        if len(self.requests[rule_id][repeat_for_i]) == 0:
+            self.evaluate_rule(rule_id, repeat_for_i)
 
     # evaluate the conditions of a rule, once all the variables have been collected
     def evaluate_rule(self, rule_id, repeat_for_i):

@@ -229,11 +229,12 @@ class Hub(Controller):
             if message.has("from_save") and message.get("from_save"):
                 sensor_id = message.args
                 sensor = self.sensors[sensor_id]
-                description = "("+sensor["description"]+")" if "description" in sensor else ""
+                description = sensor["description"] if "description" in sensor else ""
                 unit = sensor["unit"] if "unit" in sensor else ""
-                statistics = " ("+message.get("statistics")+")" if message.has("statistics") else ""
-                self.log_info("["+sensor_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") saving "+description+statistics+": "+sdk.python.utils.strings.truncate(message.get("value"), 50)+unit)
-        
+                value = sdk.python.utils.strings.truncate(message.get("value"), 50)+unit
+                if sensor["format"] == "calendar": value = "<calendar>"
+                elif sensor["format"] == "image": value = "<image>"
+                self.log_value("["+self.date.timestamp2date(message.get("timestamp"))+"] ["+sensor_id+"] \""+description+"\": "+value)
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
