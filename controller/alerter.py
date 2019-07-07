@@ -29,6 +29,7 @@ from sdk.python.module.helpers.scheduler import Scheduler
 from sdk.python.module.helpers.message import Message
 
 import sdk.python.utils.numbers
+import sdk.python.utils.strings
 
 class Alerter(Controller):
     # What to do when initializing
@@ -117,6 +118,7 @@ class Alerter(Controller):
         # ensure this rule is not run too often to avoid loops
         if rule_id in self.last_run and time.time() - self.last_run[rule_id] < 3: return
         self.last_run[rule_id] = time.time()
+        self.log_debug("Running rule "+rule_id)
         # for each sensor we need the value which will be asked to the db module. Keep track of both values and requests
         self.requests[rule_id] = {}
         self.values[rule_id] = {}
@@ -185,7 +187,7 @@ class Alerter(Controller):
                     exp1_value = self.values[rule_id][repeat_for_i][exp1]
                     exp2_value = self.values[rule_id][repeat_for_i][exp2]
                     exp_value = self.evaluate_condition(exp1_value, operator, exp2_value)
-                    self.log_debug("["+rule_id+"]["+repeat_for_i+"] resolving "+exp1+" ("+str(exp1_value)+") "+operator+" "+exp2+" ("+str(exp2_value)+"): "+str(exp_value)+" (alias "+placeholder+")")
+                    self.log_debug("["+rule_id+"]["+repeat_for_i+"] resolving "+exp1+" ("+sdk.python.utils.strings.truncate(str(exp1_value), 50)+") "+operator+" "+exp2+" ("+sdk.python.utils.strings.truncate(str(exp2_value), 50)+"): "+str(exp_value)+" (alias "+placeholder+")")
                     # store the sub expressions result in the values
                     self.values[rule_id][repeat_for_i][placeholder] = exp_value
                     and_conditions = and_conditions.replace("("+expression+")", placeholder)
@@ -195,7 +197,7 @@ class Alerter(Controller):
                 # TODO: make this a function
                 b_value = self.values[rule_id][repeat_for_i][b]
                 sub_evaluation = self.is_true(a_value, operator, b_value)
-                self.log_debug("["+rule_id+"]["+repeat_for_i+"] evaluating condition "+a+" ("+str(a_value)+") "+operator+" "+b+" ("+str(b_value)+"): "+str(sub_evaluation))
+                self.log_debug("["+rule_id+"]["+repeat_for_i+"] evaluating condition "+a+" ("+sdk.python.utils.strings.truncate(str(a_value), 50)+") "+operator+" "+b+" ("+sdk.python.utils.strings.truncate(str(b_value), 50)+"): "+str(sub_evaluation))
                 and_evaluations.append(sub_evaluation)
             # evaluation is true if all the conditions are met
             and_evaluation = True
@@ -287,6 +289,7 @@ class Alerter(Controller):
         # TODO: "startup" rules
         # rule will be run upon a schedule
         if "schedule" in rule:
+            return
             # schedule the rule execution
             self.log_debug("Scheduling "+rule_id+" with the following settings: "+str(rule["schedule"]))
             # "schedule" contains apscheduler settings for this sensor
@@ -358,6 +361,7 @@ class Alerter(Controller):
             session = self.sessions.restore(message)
             if session is None: return
             # cache the value of the variable
+            self.log_debug("["+session["rule_id"]+"]["+session["%i%"]+"] received from db "+session["variable_id"]+": "+str(message.get("data")))
             self.values[session["rule_id"]][session["%i%"]][session["variable_id"]] = message.get("data")
             # remove the request_id from the queue of the rule
             self.requests[session["rule_id"]][session["%i%"]].remove(message.get_request_id())

@@ -15,6 +15,9 @@ import sys
 reload(sys)  
 sys.setdefaultencoding('utf8')
 import time
+import os
+import logging 
+import logging.handlers
 
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
@@ -26,7 +29,10 @@ import sdk.python.utils.numbers
 class Logger(Controller):
     # What to do when initializing
     def on_init(self):
-        # TODO: log to file, allow to enable different logging
+        # logger
+        self.logger = logging.getLogger("myHouse")
+        self.rotate_size_mb = 5
+        self.rotate_count = 5
         # maximum log messages per second to print
         self.max_msg_rate = 5
         self.msg_count = 0
@@ -38,7 +44,26 @@ class Logger(Controller):
         
     # What to do when running    
     def on_start(self):
-        # schedule to apply configured retention policies
+        #configure loggers
+        self.logger.setLevel(logging.INFO)
+        # configure console logging
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        console.setFormatter(logging.Formatter("%(message)s"))
+        self.logger.addHandler(console)
+        # configure file logging
+        log_dir = os.path.abspath(os.path.dirname(__file__))+"/../logs"
+        if not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir)
+            except Exception,e: 
+                print "unable to create directory "+log_dir+": "+exception.get(e)
+        if os.path.exists(log_dir):
+            file = logging.handlers.RotatingFileHandler(log_dir+"/myHouse.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
+            file.setLevel(logging.INFO)
+            file.setFormatter(logging.Formatter("%(message)s"))
+            self.logger.addHandler(file)
+        # schedule to apply configured retention policies to the logs stored into the database
         job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
         self.scheduler.add_job(job)
         # start the scheduler 
@@ -52,7 +77,7 @@ class Logger(Controller):
     # log the message
     def log(self, log_message):
         # print the message
-        print sdk.python.utils.strings.format_log_line(log_message.args, log_message.sender, log_message.get_data())
+        self.logger.info(sdk.python.utils.strings.format_log_line(log_message.args, log_message.sender, log_message.get_data()))
         # ask db to save the log
         message = Message(self)
         message.recipient = "controller/db"
@@ -72,7 +97,6 @@ class Logger(Controller):
     
     # What to do when receiving a request for this module
     def on_message(self, message):
-        # TODO: optionally log to file
         # print out the log message
         if message.command == "LOG":
             # if we are into the same second of the last message, check if not printing too many messages

@@ -5,3 +5,5 @@
 *.pyc
 sdk
 sdk/
+logs
+logs/

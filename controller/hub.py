@@ -178,7 +178,7 @@ class Hub(Controller):
         #TODO: ifnotexists?
         # 4) attach retention policies to be applied straight away
         if "retain" in sensor and sensor["retain"] in self.config["retain"]:
-            message.set("retain", self.config["retain"][sensor["retain"]])
+            message.set("retain", self.config["retain"][sensor["retain"]]["policies"])
         # 5) ask the db to store the value
         message.forward("controller/db")
         message.command = "SAVE"
@@ -191,7 +191,7 @@ class Hub(Controller):
 
     # What to do when receiving a request for this module    
     def on_message(self, message):
-        # new value coming from a sensor (soliceted or unsolicited), save it
+        # new value coming from a sensor (solicited or unsolicited), save it
         if message.command == "IN":
             # retrieve the sensor_id for which this message is directed to
             sensor_id = message.args

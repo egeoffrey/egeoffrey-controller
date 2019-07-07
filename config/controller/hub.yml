@@ -1,14 +1,11 @@
 calculate:
   avg_min_max:
-    description: Every hour average, minimum and maximum values are automatically
-      calculated from the collected measures; every day average, minimum and maximum
-      are calculated from the hourly averages
+    description: Every hour average, minimum and maximum values are automatically calculated from the collected measures; every day average, minimum and maximum are calculated from the hourly averages
     operations:
     - avg
     - min_max
   sum:
-    description: For every hour and day the sum of the measures from each timeframe
-      is automatically calculated
+    description: For every hour and day the sum of the measures from each timeframe is automatically calculated
     operations:
     - avg
     - sum
@@ -25,18 +22,18 @@ post_processors:
   mm->inch: echo 'print %value% / 25.4' | python
 retain:
   history:
-    daily: 0
-    description: Retain values for 5 days, hourly averages for 5 days and daily averages
-      forever. Recommended for timeseries data
-    hourly: 5
-    raw: 5
+    description: Retain values for 5 days, hourly averages for 5 days and daily averages forever. Recommended for timeseries data
+    policies:
+      hourly: 5
+      raw: 5
+      daily: 0
   single_value:
-    count: 1
-    description: Retain the latest value only. Recommended for actuators, status indicators,
-      etc.
-    raw: 0
-short_history:
-  daily: 5
-  description: Retain daily values for the last 5 days, ignore values older than the
-    latest
-  new_only: true
+    description: Retain the latest value only. Recommended for actuators, status indicators, etc.
+    policies:
+      raw: 0
+      count: 1
+  short_history:
+    description: Retain daily values for the last 5 days, ignore values older than the latest
+    policies:
+      daily: 5
+      new_only: true

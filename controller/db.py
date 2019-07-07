@@ -239,7 +239,7 @@ class Db(Controller):
             self.set(key_to_write+"/max", max, timestamp)
         if "rate" in calculations:
             # calculate the rate of change
-            rate = sdk.python.utils.numbers.velocity(timestamps,values)
+            rate = sdk.python.utils.numbers.velocity(timestamps, values)
             self.deletebyscore(key_to_write+"/rate", start, end)
             self.set(key_to_write+"/rate", rate, timestamp)
         if "sum" in calculations:
