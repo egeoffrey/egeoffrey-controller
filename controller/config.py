@@ -170,8 +170,7 @@ class Config(Controller):
         # delete the file
         os.remove(file_path)
         self.log_info("Successfully deleted file "+file)
-        # reload the service (a bug in mqtt prevent from unsubscribing and subscribing to the same topic again)
-        #self.watchdog.restart_module(self.fullname)
+        # reload the configuration
         self.load_config()
     
     # save a new/updated configuration file

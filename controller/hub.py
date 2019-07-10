@@ -168,6 +168,7 @@ class Hub(Controller):
                 self.log_debug("["+sensor_id+"] transforming "+str(orig_value)+" into "+str(message.get("value")))
             except Exception,e: 
                 self.log_error("["+sensor_id+"] Unable to post-process "+str(orig_value)+" by running "+str(command)+": "+exception.get(e))
+                return
         # 3) normalize the value according to its format
         try:
             # TODO: format does not exist anymore
@@ -175,6 +176,7 @@ class Hub(Controller):
         except Exception,e: 
             # TODO: make exception part of the class
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
+            return
         #TODO: ifnotexists?
         # 4) attach retention policies to be applied straight away
         if "retain" in sensor and sensor["retain"] in self.config["retain"]:
@@ -229,12 +231,28 @@ class Hub(Controller):
             if message.has("from_save") and message.get("from_save"):
                 sensor_id = message.args
                 sensor = self.sensors[sensor_id]
+                # log new value
                 description = sensor["description"] if "description" in sensor else ""
                 unit = sensor["unit"] if "unit" in sensor else ""
                 value = sdk.python.utils.strings.truncate(message.get("value"), 50)+unit
                 if sensor["format"] == "calendar": value = "<calendar>"
                 elif sensor["format"] == "image": value = "<image>"
-                self.log_value("["+self.date.timestamp2date(message.get("timestamp"))+"] ["+sensor_id+"] \""+description+"\": "+value)
+                self.log_info("["+self.date.timestamp2date(message.get("timestamp"))+"] ["+sensor_id+"] \""+description+"\": "+str(value))
+                # new values are handled like notifications with a "value" severity
+                alert_text = sensor["description"]+": "+str(value) if "description" in sensor else sensor_id+": "+str(value)
+                message = Message(self)
+                message.recipient = "*/*"
+                message.command = "NOTIFY"
+                message.args = "value/"+sensor_id
+                message.set_data(alert_text)
+                self.send(message)
+                # save the notification in the db
+                message = Message(self)
+                message.recipient = "controller/db"
+                message.command = "SAVE_ALERT"
+                message.args = "value"
+                message.set_data(alert_text)
+                self.send(message)
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):

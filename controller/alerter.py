@@ -288,8 +288,7 @@ class Alerter(Controller):
         self.rules[rule_id] = rule
         # TODO: "startup" rules
         # rule will be run upon a schedule
-        if "schedule" in rule:
-            return
+        if rule["type"] == "recurrent":
             # schedule the rule execution
             self.log_debug("Scheduling "+rule_id+" with the following settings: "+str(rule["schedule"]))
             # "schedule" contains apscheduler settings for this sensor
@@ -299,10 +298,10 @@ class Alerter(Controller):
             job["args"] = [rule_id]
             # schedule the job for execution and keep track of the job id
             self.jobs[rule_id] = self.scheduler.add_job(job).id
-        # rule will be run every time one of the variables will change value
-        else:
-            # when "for" is used, the same rule is run independently for each item 
+        # for rules without a schedule, rule will be run every time one of the variables will change value
+        elif rule["type"] == "realtime":
             if "variables" in rule:
+                # when "for" is used, the same rule is run independently for each item 
                 repeat_for = rule["for"] if "for" in rule else ["_default_"]
                 for repeat_for_i in repeat_for:
                     for variable_id, variable in rule["variables"].iteritems():
@@ -328,7 +327,7 @@ class Alerter(Controller):
             if rule_id in self.values: del self.values[rule_id]
             for sensor_id in self.triggers:
                 if rule_id in self.triggers[sensor_id]:
-                    del self.triggers[sensor_id][rule_id]
+                    self.triggers[sensor_id].remove(rule_id)
                     if len(self.triggers[sensor_id]) == 0: del self.triggers[sensor_id]
         
     # apply configured retention policies for saved alerts
