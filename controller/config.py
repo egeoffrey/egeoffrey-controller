@@ -226,13 +226,13 @@ class Config(Controller):
         
     # What to do when receiving a request for this module    
     def on_message(self, message):
-        # update/save a configuration file
+        # requested to update/save a configuration file
         if message.command == "SAVE":
             self.save_config_file(message.args, message.get_data())
-        # delete a configuration file
+        # requested to delete a configuration file
         elif message.command == "DELETE":
             self.delete_config_file(message.args)
-        # receive manifest file
+        # receive manifest file, it may contain default configurations
         elif message.command == "MANIFEST":
             if message.is_null: return
             manifest = message.get_data()
@@ -245,19 +245,19 @@ class Config(Controller):
                     file_content = entry[filename]
                     # do not overwrite existing files since the user may have changed default values
                     if os.path.isfile(self.config_dir+os.sep+filename+".yml"): continue
-                    # ensure the file is in the correct format
+                    # ensure the file is in a valid YAML format
                     try:
                         content = yaml.safe_dump(file_content, default_flow_style=False)
                     except Exception,e: 
                         self.log_warning("unable to save "+filename+", invalid YAML format: "+str(file_content)+" - "+exception.get(e))
                         return
-                    # save the new/updated default configuration
+                    # save the new/updated default configuration file
                     self.log_debug("Received new default configuration file "+filename)
                     # TODO: wait a bit before reloading
                     self.save_config_file(filename, file_content, False)
                     self.load_config()
 
-     # What to do when receiving a new/updated configuration for this module    
+    # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
         # received old index
         if message.args == "__index":

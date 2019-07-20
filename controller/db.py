@@ -468,7 +468,7 @@ class Db(Controller):
             # 3) if start and/or end are timestamps, use rangebyscore, otherwise use range
             if "start" in query and query["start"] > 1000:
                 function = self.rangebyscore
-            elif "stop" in query and query["stop"] > 1000:
+            elif "end" in query and query["end"] > 1000:
                 function = self.rangebyscore
             else: 
                 function = self.range

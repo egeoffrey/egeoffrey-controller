@@ -1,5 +1,5 @@
 package: myhouse-controller
-revision: 12
+revision: 13
 version: development
 github: myhouse-project/myhouse-controller
 dockerhub: myhouseproject/myhouse-controller
