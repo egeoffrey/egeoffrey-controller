@@ -29,6 +29,8 @@ import sdk.python.utils.numbers
 class Logger(Controller):
     # What to do when initializing
     def on_init(self):
+        # module's configuration
+        self.config = {}
         # logger
         self.logger = logging.getLogger("myHouse")
         self.rotate_size_mb = 5
@@ -40,7 +42,8 @@ class Logger(Controller):
         # scheduler is needed for purging old logs
         self.scheduler = Scheduler(self)
         # require module configuration before starting up
-        self.add_configuration_listener(self.fullname, True)
+        self.config_schema = 1
+        self.add_configuration_listener(self.fullname, "+", True)
         
     # What to do when running    
     def on_start(self):
@@ -116,4 +119,8 @@ class Logger(Controller):
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
         # TODO: add configuration (db yes/no, etc.)
-        pass
+        # module's configuration
+        if message.args == self.fullname and not message.is_null:
+            if message.config_schema != self.config_schema: 
+                return False
+            self.config = message.get_data()

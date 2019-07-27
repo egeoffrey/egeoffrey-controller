@@ -62,10 +62,11 @@ class Db(Controller):
         self.date = None
         self.house = None
         # request required configuration files
-        self.add_configuration_listener("controller/db", True)
-        self.add_configuration_listener("house", True)
+        self.config_schema = 1
+        self.add_configuration_listener(self.fullname, "+", True)
+        self.add_configuration_listener("house", 1, True)
     
-    # connect to the datase
+    # connect to the database
     def connect(self):
         while not self.db_connected:
             try: 
@@ -569,14 +570,16 @@ class Db(Controller):
         # ignore deleted configuration files while service is restarting
         if message.is_null: return
         # we need house timezone for querying the database
-        if message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
+        if message.args == "house" and not message.is_null:
+            if not self.is_valid_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
             self.house = message.get_data()
         # module's configuration
-        elif message.args == self.fullname:            
+        elif message.args == self.fullname:     
+            if message.config_schema != self.config_schema: 
+                return False
             # ensure the configuration file contains all required settings
-            if not self.is_valid_module_configuration(["hostname", "port", "database"], message.get_data()): return False
+            if not self.is_valid_configuration(["hostname", "port", "database"], message.get_data()): return False
             # if this is an updated configuration file, disconnect and reconnect
             if self.config: 
                 self.disconnect()

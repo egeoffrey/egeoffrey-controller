@@ -42,13 +42,14 @@ class Chatbot(Controller):
         # map sensor_id to sensor
         self.sensors = {}
         # request required configuration files
-        self.add_configuration_listener("controller/chatbot", True)
+        self.config_schema = 1
+        self.add_configuration_listener(self.fullname, "+", True)
     
     # What to do when running
     def on_start(self):
         # ask for all rules' and sensors' configuration
-        self.add_configuration_listener("rules/#")
-        self.add_configuration_listener("sensors/#")
+        self.add_configuration_listener("rules/#", 1)
+        self.add_configuration_listener("sensors/#", 1)
         
     # What to do when shutting down
     def on_stop(self):
@@ -165,8 +166,10 @@ class Chatbot(Controller):
         # TODO: remove from vocabulary
         if message.is_null: return
         # module's configuration
-        if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["vocabulary"], message.get_data()): return False
+        if message.args == self.fullname and not message.is_null:
+            if message.config_schema != self.config_schema: 
+                return False
+            if not self.is_valid_configuration(["vocabulary"], message.get_data()): return False
             self.vocabulary = message.get("vocabulary")
         # rules
         elif message.args.startswith("rules/"):

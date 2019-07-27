@@ -16,6 +16,7 @@ import os
 import time
 import hashlib
 import yaml
+import re
 
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.message import Message
@@ -33,6 +34,8 @@ class Config(Controller):
         self.accept_default_config = int(os.getenv("MYHOUSE_CONFIG_ACCEPT_DEFAULTS", 1))
         # keep track of the old config index
         self.old_index = None
+        self.index_key = "__index"
+        self.index_version = 1
         # status flags
         self.load_config_running = False
         self.reload_config = False
@@ -43,6 +46,18 @@ class Config(Controller):
         hasher = hashlib.md5()
         hasher.update(content)
         return hasher.hexdigest()
+        
+    # split filename from version given a filename
+    def parse_filename(self, filename):
+        match = re.match("^(.+)\.(\d)$", filename)
+        if match is None: return None
+        else: return match.groups()
+        
+    # split filename from version given a topic
+    def parse_topic(self, topic):
+        match = re.match("^(\d)\/(.+)$", topic)
+        if match is None: return None
+        else: return match.groups()
     
     # read all the files in the configuration directory and returns and an index with filename and hash
     def build_index(self):
@@ -57,11 +72,15 @@ class Config(Controller):
                 file = current_path+os.sep+filename
                 # parse the file paths
                 name, extension = os.path.splitext(file)
+                # skip files with invalid extensions
                 if extension != ".yml": 
                     self.log_warning("ignoring file with invalid extension: "+filename)
-                    continue # skip files with invalid extensions
-                # remove base configuration dir to build the topic
-                topic = name.replace(self.config_dir+os.sep,"")
+                    continue 
+                # ensure the filename contains the version and retrieve it
+                if self.parse_filename(name) is None:
+                    self.log_warning("ignoring "+filename+" since version is invalid")
+                    continue
+                name_without_version, version = self.parse_filename(name)
                 # read the file's content
                 with open(file) as f: content = f.read()
                 # ensure the yaml file is valid
@@ -70,30 +89,37 @@ class Config(Controller):
                 except Exception,e: 
                     self.log_warning("configuration file in an invalid YAML format: "+filename+" - "+exception.get(e))
                     continue
-                # update the index with the corresponding hash
-                index[topic] = { "file": file, "hash": self.get_hash(content) }
+                # remove base configuration dir to build the topic and append version number
+                topic = name_without_version.replace(self.config_dir+os.sep,"")
+                # if there are multiple versions of the file, only publish the latest
+                if topic in index:
+                    if version < index[topic]["version"]: continue
+                # update the index with the corresponding hash    
+                index[topic] = { "file": file, "version": version, "hash": self.get_hash(content) }
         return index
     
     # publish a configuration file
-    def publish_config(self, topic, content):
-        if topic != "__index": self.log_debug("Publishing configuration "+topic)
+    def publish_config(self, filename, version, content):
+        if filename != self.index_key: self.log_debug("Publishing configuration "+filename+" (v"+str(version)+")")
         message = Message(self)
         message.recipient = "*/*"
         message.command = "CONF"
-        message.args = topic
+        message.args = filename
+        message.config_schema = version
         message.set_data(content)
         # configuration is retained so when a module connects, immediately get the latest config
         message.retain = True 
         self.send(message)
     
     # delete a retained message from the bus
-    def clear_config(self, topic):
+    def clear_config(self, filename, version):
         # send a null so to cancel retention
-        if topic != "__index": self.log_debug("Removing configuration "+topic)
+        if filename != self.index_key: self.log_debug("Unpublishing configuration "+filename+" (v"+str(version)+")")
         message = Message(self)
         message.recipient = "*/*"
         message.command = "CONF"
-        message.args = topic
+        message.args = filename
+        message.config_schema = version
         # remove the retained message
         message.set_null()
         message.retain = True
@@ -110,7 +136,7 @@ class Config(Controller):
         new_index = self.build_index()
         # 2) request the old index
         if self.old_index is None: 
-            listener = self.add_configuration_listener("__index")
+            listener = self.add_configuration_listener(self.index_key, self.index_version)
             # sleep by continuously checking if the index has been received
             dec = 0
             while (dec <= 20): 
@@ -133,21 +159,21 @@ class Config(Controller):
         if self.force_reload: self.force_reload = False
         # 4) publish new/updated configuration files only
         for topic in new_index:
-            # if the file was also in the old index and has the same hash, skip it
-            if topic in self.old_index and new_index[topic]["hash"] == self.old_index[topic]["hash"]: continue
+            # if the file was also in the old index with the same version and has the same hash, skip it
+            if topic in self.old_index and new_index[topic]["version"] == self.old_index[topic]["version"] and new_index[topic]["hash"] == self.old_index[topic]["hash"]: continue
             # otherwise read the file and publish it
             with open(new_index[topic]["file"]) as f: file = f.read()
             content = yaml.load(file, Loader=yaml.SafeLoader)
             # TODO: how to keep order of configuration file
-            self.publish_config(topic, content)
+            self.publish_config(topic, new_index[topic]["version"], content)
         # 5) delete removed configuration files
         for topic in self.old_index:
             # topic is in old but not in new index
             if topic not in new_index:
-                self.clear_config(topic)
+                self.clear_config(topic, self.old_index[topic]["version"])
         # 6) publish/update the new index on the bus
-        self.clear_config("__index")
-        self.publish_config("__index", new_index)
+        self.clear_config(self.index_key, self.index_version)
+        self.publish_config(self.index_key, self.index_version, new_index)
         self.old_index = new_index
         self.log_info("Configuration successfully published")
         self.load_config_running = False
@@ -157,24 +183,25 @@ class Config(Controller):
             self.load_config()
     
     # delete a configuration file
-    def delete_config_file(self, file):
+    def delete_config_file(self, filename, version):
         # ensure filename is valid
-        if ".." in file:
-            self.log_warning("invalid file "+file)
+        if ".." in filename:
+            self.log_warning("invalid file "+filename)
             return
-        file_path = self.config_dir+os.sep+file+".yml"
+        file_path = self.config_dir+os.sep+filename+"."+version+".yml"
         # ensure the file exists
         if not os.path.isfile(file_path):
             self.log_warning(file_path+" does not exist")
             return
         # delete the file
         os.remove(file_path)
-        self.log_info("Successfully deleted file "+file)
+        self.clear_config(filename, version)
+        self.log_info("Successfully deleted file "+filename+" (v"+str(version)+")")
         # reload the configuration
         self.load_config()
     
     # save a new/updated configuration file
-    def save_config_file(self, file, data, reload_after_save=True):
+    def save_config_file(self, file, version, data, reload_after_save=True):
         # ensure filename is valid
         if ".." in file:
             self.log_warning("invalid file "+file)
@@ -198,12 +225,13 @@ class Config(Controller):
                 except Exception,e: 
                     self.log_error("unable to create directory "+path+": "+exception.get(e))
                     return
+        # TODO: save backup and handle revisions
         # save the file
-        file_path = self.config_dir+os.sep+file+".yml"
+        file_path = self.config_dir+os.sep+file+"."+version+".yml"
         f = open(file_path, "w")
         f.write(content)
         f.close()
-        self.log_info("Saved configuration file "+file)
+        self.log_info("Saved configuration file "+file+" (v"+str(version)+")")
         # restart the module or just reload the configuration
         if reload_after_save: 
             self.load_config()
@@ -228,10 +256,14 @@ class Config(Controller):
     def on_message(self, message):
         # requested to update/save a configuration file
         if message.command == "SAVE":
-            self.save_config_file(message.args, message.get_data())
+            if self.parse_topic(message.args) is None: return
+            version, filename = self.parse_topic(message.args)
+            self.save_config_file(filename, version, message.get_data())
         # requested to delete a configuration file
         elif message.command == "DELETE":
-            self.delete_config_file(message.args)
+            if self.parse_topic(message.args) is None: return
+            version, filename = self.parse_topic(message.args)
+            self.delete_config_file(filename, version)
         # receive manifest file, it may contain default configurations
         elif message.command == "MANIFEST":
             if message.is_null: return
@@ -241,20 +273,22 @@ class Config(Controller):
             # if there is a default configuration in the manifest file, save it
             default_config = manifest["default_config"]
             for entry in default_config:
-                for filename in entry:
-                    file_content = entry[filename]
+                for filename_with_version in entry:
+                    if self.parse_filename(filename_with_version) is None: return
+                    filename, version = self.parse_filename(filename_with_version)
+                    file_content = entry[filename_with_version]
                     # do not overwrite existing files since the user may have changed default values
-                    if os.path.isfile(self.config_dir+os.sep+filename+".yml"): continue
+                    if filename in self.old_index: continue
                     # ensure the file is in a valid YAML format
                     try:
                         content = yaml.safe_dump(file_content, default_flow_style=False)
-                    except Exception,e: 
+                    except Exception,e:
                         self.log_warning("unable to save "+filename+", invalid YAML format: "+str(file_content)+" - "+exception.get(e))
                         return
                     # save the new/updated default configuration file
                     self.log_debug("Received new default configuration file "+filename)
                     # TODO: wait a bit before reloading
-                    self.save_config_file(filename, file_content, False)
+                    self.save_config_file(filename, version, file_content, False)
                     self.load_config()
 
     # What to do when receiving a new/updated configuration for this module    
@@ -267,5 +301,5 @@ class Config(Controller):
         if self.clear_config_running:
             # prevent a loop with the message below
             if message.get_data() == "" or message.is_null or message.recipient == "controller/logger": return 
-            self.clear_config(message.args)
+            self.clear_config(message.args, message.config_schema)
             

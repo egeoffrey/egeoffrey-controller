@@ -1,5 +1,6 @@
+manifest_schema: 1
 package: myhouse-controller
-revision: 13
+revision: 14
 version: development
 github: myhouse-project/myhouse-controller
 dockerhub: myhouseproject/myhouse-controller
@@ -10,10 +11,10 @@ container_config:
 description: The myHouse controller manages the configuration of all the other modules, orchestrate sensors and run alerting rules
 tags: controller
 modules:
-  - controller/logger
-  - controller/config
-  - controller/db
-  - controller/alerter
-  - controller/chatbot
-  - controller/hub
+  - controller/logger: {}
+  - controller/config: {}
+  - controller/db: {}
+  - controller/alerter: {}
+  - controller/chatbot: {}
+  - controller/hub: {}
 

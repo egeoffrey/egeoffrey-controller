@@ -53,7 +53,9 @@ class Alerter(Controller):
         # scheduler is needed for scheduling rules
         self.scheduler = Scheduler(self)
         # require module configuration before starting up
-        self.add_configuration_listener(self.fullname, True)
+        self.config_schema = 1
+        self.rules_config_schema = 1
+        self.add_configuration_listener(self.fullname, "+", True)
         # subscribe for acknowledgments from the database for saved values
         self.add_inspection_listener("controller/db", "*/*", "SAVED", "#")
         
@@ -342,7 +344,7 @@ class Alerter(Controller):
     # What to do when running    
     def on_start(self):
         # ask for all rules' configuration
-        self.add_configuration_listener("rules/#")
+        self.add_configuration_listener("rules/#", "+")
         # schedule to apply configured retention policies (every day just after 1am)
         job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
         self.scheduler.add_job(job)
@@ -388,13 +390,17 @@ class Alerter(Controller):
         # ignore deleted configuration files while service is restarting
         if message.is_null and not message.args.startswith("rules/"): return
         # module's configuration
-        if message.args == self.fullname:
+        if message.args == self.fullname and not message.is_null:
+            if message.config_schema != self.config_schema: 
+                return False
             # ensure the configuration file contains all required settings
-            if not self.is_valid_module_configuration(["retention"], message.get_data()): return False
+            if not self.is_valid_configuration(["retention"], message.get_data()): return False
             self.config = message.get_data()
         # add/remove rule
         elif message.args.startswith("rules/"):
             if not self.configured: return
+            if message.config_schema != self.rules_config_schema: 
+                return
             rule_id = message.args.replace("rules/","")
             if message.is_null: self.remove_rule(rule_id)
             # TODO: check rule mandatory config

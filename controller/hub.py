@@ -46,8 +46,10 @@ class Hub(Controller):
         # date/time helper
         self.date = None
         # request required configuration files
-        self.add_configuration_listener("controller/hub", True)
-        self.add_configuration_listener("house", True)
+        self.config_schema = 1
+        self.sensors_config_schema = 1
+        self.add_configuration_listener(self.fullname, "+", True)
+        self.add_configuration_listener("house", 1, True)
         # subscribe for acknowledgments from the database for saved values
         self.add_inspection_listener("controller/db", "*/*", "SAVED", "#")
 
@@ -129,7 +131,7 @@ class Hub(Controller):
     # What to do when running
     def on_start(self):
         # 1) ask for all sensor's configuration
-        self.add_configuration_listener("sensors/#")
+        self.add_configuration_listener("sensors/#", "+")
         # 2) schedule statistics calculation
         # TODO: what if different houses live in different timezones
         # every hour (just after the top of the hour) calculate for each sensor statistics of the previous hour
@@ -259,16 +261,20 @@ class Hub(Controller):
         # ignore deleted configuration files while service is restarting
         if message.is_null and not message.args.startswith("sensors/"): return
         # module's configuration
-        if message.args == self.fullname:
-            if not self.is_valid_module_configuration(["poll_at_startup", "calculate", "retain"], message.get_data()): return False
+        if message.args == self.fullname and not message.is_null:
+            if message.config_schema != self.config_schema: 
+                return False
+            if not self.is_valid_configuration(["poll_at_startup", "calculate", "retain"], message.get_data()): return False
             self.config = message.get_data()
         # we need the house timezone to set the timestamp when not provided by the sensor
-        elif message.args == "house":
-            if not self.is_valid_module_configuration(["timezone"], message.get_data()): return False
+        elif message.args == "house" and not message.is_null:
+            if not self.is_valid_configuration(["timezone"], message.get_data()): return False
             self.date = DateTimeUtils(message.get("timezone"))
         # add/remove sensor
         elif message.args.startswith("sensors/"):
             if not self.configured: return
+            if message.config_schema != self.sensors_config_schema: 
+                return
             sensor_id = message.args.replace("sensors/","")
             if message.is_null: self.remove_sensor(sensor_id)
             # TODO: check sensor mandatory config
