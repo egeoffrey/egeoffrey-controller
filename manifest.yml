@@ -1,6 +1,6 @@
 manifest_schema: 1
 package: myhouse-controller
-revision: 14
+revision: 15
 version: development
 github: myhouse-project/myhouse-controller
 dockerhub: myhouseproject/myhouse-controller

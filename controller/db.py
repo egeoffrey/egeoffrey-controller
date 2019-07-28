@@ -311,7 +311,7 @@ class Db(Controller):
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
                     # if the value is also the same, skip it
-                    self.log_info("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+str(message.get("value")))
+                    self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") already in the database, ignoring "+key+": "+str(message.get("value")))
                     return
                 else: 
                     # same timestamp but different value, remove the old value so to store the new one
