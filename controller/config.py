@@ -36,6 +36,7 @@ class Config(Controller):
         self.old_index = None
         self.index_key = "__index"
         self.index_version = 1
+        self.supported_manifest_schema = 2
         # status flags
         self.load_config_running = False
         self.reload_config = False
@@ -242,7 +243,6 @@ class Config(Controller):
         self.load_config()
         # receive manifest files with default config
         self.add_broadcast_listener("+/+", "MANIFEST", "#")
-        # TODO: how to upgrade config
         
     # What to do when shutting down
     def on_stop(self):
@@ -268,6 +268,7 @@ class Config(Controller):
         elif message.command == "MANIFEST":
             if message.is_null: return
             manifest = message.get_data()
+            if manifest["manifest_schema"] != self.supported_manifest_schema: return
             self.log_debug("Received manifest from "+message.sender)
             if not self.accept_default_config or self.force_reload or not "default_config" in manifest: return
             # if there is a default configuration in the manifest file, save it
