@@ -18,7 +18,7 @@
 # - controller/db PURGE_SENSOR: periodically purge old data
 # - controller/db SAVE: save new measures
 
-import sys  
+import sys
 reload(sys)  
 sys.setdefaultencoding('utf8')
 
@@ -239,6 +239,7 @@ class Hub(Controller):
                 value = sdk.python.utils.strings.truncate(message.get("value"), 50)+unit
                 if sensor["format"] == "calendar": value = "<calendar>"
                 elif sensor["format"] == "image": value = "<image>"
+                elif sensor["format"] == "position": value = "<position>"
                 self.log_info("["+self.date.timestamp2date(message.get("timestamp"))+"] ["+sensor_id+"] \""+description+"\": "+str(value))
                 # new values are handled like notifications with a "value" severity
                 alert_text = sensor["description"]+": "+str(value) if "description" in sensor else sensor_id+": "+str(value)

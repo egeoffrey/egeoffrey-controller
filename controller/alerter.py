@@ -52,6 +52,8 @@ class Alerter(Controller):
         self.jobs = {}
         # scheduler is needed for scheduling rules
         self.scheduler = Scheduler(self)
+        # regular expression used to parse variables
+        self.variable_regexp = '^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|POSITION_LABEL|POSITION_TEXT|)\s*(-\d+)?(,-\d+)?\s*(\S+)$'
         # require module configuration before starting up
         self.config_schema = 1
         self.rules_config_schema = 1
@@ -142,7 +144,7 @@ class Alerter(Controller):
                     # a variable can contain %i% which is replaced with every item of "for"
                     variable_i = variable.replace("%i%", repeat_for_i)
                     # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                    match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
+                    match = re.match(self.variable_regexp, variable_i)
                     if match is None: continue
                     # query db for the data
                     command, start, end, sensor_id = match.groups()
@@ -300,7 +302,7 @@ class Alerter(Controller):
             job["args"] = [rule_id]
             # schedule the job for execution and keep track of the job id
             self.jobs[rule_id] = self.scheduler.add_job(job).id
-        # for rules without a schedule, rule will be run every time one of the variables will change value
+        # for realtime rules, rule will be run every time one of the variables will change value
         elif rule["type"] == "realtime":
             if "variables" in rule:
                 # when "for" is used, the same rule is run independently for each item 
@@ -310,11 +312,11 @@ class Alerter(Controller):
                         # a variable can contain %i% which is replaced with every item of "for"
                         variable_i = variable.replace("%i%", repeat_for_i)
                         # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                        match = re.match('^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|)\s*(-\d+)?(,-\d+)?\s*(\S+)$', variable_i)
+                        match = re.match(self.variable_regexp, variable_i)
                         if match is None: return
                         command, start, end, sensor_id = match.groups()
                         # add the sensor_id to the triggers so the rule will be run upon any change
-                        if sensor_id not in self.triggers: 
+                        if sensor_id not in self.triggers:
                             self.triggers[sensor_id] = []
                         self.triggers[sensor_id].append(rule_id)
     

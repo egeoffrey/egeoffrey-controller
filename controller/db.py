@@ -19,6 +19,7 @@
 # - GET_ELAPSED: return the elapsed time since the measure was taken
 # - GET_TIMESTAMP: return the timestamp of the measure
 # - GET_DISTANCE: return the distance from the measure
+# - GET_POSITION: return the name of the position
 # - GET_COUNT: return the number of measures of a given timeframe
 # OUTBOUND: 
 # - */* SAVED: notify a new measure has been saved
@@ -73,7 +74,7 @@ class Db(Controller):
                 self.log_debug("Connecting to database "+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"]))
                 self.db = redis.StrictRedis(host=self.config["hostname"], port=self.config["port"], db=self.config["database"])
                 if self.db.ping():
-                    self.log_info("Connected to database "+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"])+" version "+self.db.info().get('redis_version'))
+                    self.log_info("Connected to database #"+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"])+", redis version "+self.db.info().get('redis_version'))
                     self.db_connected = True
             except Exception,e:
                 self.log_error("Unable to connect to "+self.config["hostname"]+":"+str(self.config["port"]))
@@ -531,6 +532,30 @@ class Db(Controller):
                 distance = 6367 * c
                 if self.house["units"] == "imperial": distance = distance/1.609
                 data = [int(distance)]
+            # the text associated to the position is requested
+            elif message.command == "GET_POSITION_TEXT":
+                if len(data) == 0: return []
+                try:
+                    position = json.loads(data[0])
+                except Exception,e: 
+                    self.log_warning("unable to get the text from an invalid position: "+str(data)+" - "+exception.get(e))
+                    return
+                if "text" not in position: 
+                    self.log_warning("text missing: "+str(position))
+                    return
+                data = [position["text"]]
+            # the label associated to the position is requested
+            elif message.command == "GET_POSITION_LABEL":
+                if len(data) == 0: return []
+                try:
+                    position = json.loads(data[0])
+                except Exception,e: 
+                    self.log_warning("unable to get the label from an invalid position: "+str(data)+" - "+exception.get(e))
+                    return
+                if "label" not in position: 
+                    self.log_warning("label missing: "+str(position))
+                    return
+                data = [position["label"]]
             # the timestamp of the measure is requested, return it
             elif message.command == "GET_SCHEDULE":
                 if len(data) != 1: return []
