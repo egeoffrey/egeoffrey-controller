@@ -570,16 +570,16 @@ class Db(Controller):
                 events = json.loads(calendar[1])
                 found = False
                 for event in events:
-                        # generate the timestamp of start and end date
-                        start_date = datetime.datetime.strptime(event["start_date"],"%Y-%m-%dT%H:%M:%S.000Z")
-                        start_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(start_date.timetuple()))))
-                        end_date = datetime.datetime.strptime(event["end_date"],"%Y-%m-%dT%H:%M:%S.000Z")
-                        end_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(end_date.timetuple()))))
-                        now_ts = self.date.now()
-                        # check if we are within an event
-                        if now_ts > start_timestamp and now_ts < end_timestamp: 
-                            found = True
-                            data = [event["text"]]
+                    # generate the timestamp of start and end date
+                    start_date = datetime.datetime.strptime(event["start_date"],"%Y-%m-%dT%H:%M:%S.000Z")
+                    start_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(start_date.timetuple()))))
+                    end_date = datetime.datetime.strptime(event["end_date"],"%Y-%m-%dT%H:%M:%S.000Z")
+                    end_timestamp = self.date.timezone(self.date.timezone(int(time.mktime(end_date.timetuple()))))
+                    now_ts = self.date.now()
+                    # check if we are within an event
+                    if now_ts > start_timestamp and now_ts < end_timestamp: 
+                        found = True
+                        data = [event["text"]]
                 if not found: data = [""]
             # a count of the measures taken during the timeframe is requested,  count the values
             elif message.command == "GET_COUNT":

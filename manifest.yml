@@ -7,6 +7,7 @@ description: The myHouse controller manages the configuration of all the other m
   orchestrate sensors and run alerting rules
 dockerhub: myhouseproject/myhouse-controller
 github: myhouse-project/myhouse-controller
+icon: gamepad
 manifest_schema: 2
 modules:
 - controller/logger: {}
@@ -16,6 +17,6 @@ modules:
 - controller/chatbot: {}
 - controller/hub: {}
 package: myhouse-controller
-revision: 23
+revision: 24
 tags: controller
 version: 1.0
