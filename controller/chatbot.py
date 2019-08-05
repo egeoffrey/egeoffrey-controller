@@ -85,7 +85,10 @@ class Chatbot(Controller):
             if "image" in accept: vocabularies.extend([self.vocabulary_sensors_image])
             # evaluate each dictionary individually until we find a good answer
             for kb in vocabularies:
-                keywords, score = self.evaluate(request, kb)
+                evaluation = self.evaluate(request, kb)
+                if evaluation is None: continue
+                keywords = evaluation[0]
+                score = evaluation[1]
                 # if we are confident enough
                 if score > self.not_understood_score:
                     actions = kb[keywords]
@@ -133,7 +136,7 @@ class Chatbot(Controller):
             if session is None: return
             sensor_id = message.args
             sensor = self.sensors[sensor_id]
-            value = str(message.get("data")[0])
+            value =  str(message.get("data")[0]) if len(message.get("data")) > 0 else "N.A."
             if sensor_id in self.sensors and "unit" in self.sensors[sensor_id]: value = value+str(self.sensors[sensor_id]["unit"])
             message = session["message"]
             message.reply()

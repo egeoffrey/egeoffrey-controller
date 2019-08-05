@@ -16,6 +16,6 @@ modules:
 - controller/chatbot: {}
 - controller/hub: {}
 package: myhouse-controller
-revision: 22
+revision: 23
 tags: controller
 version: 1.0
