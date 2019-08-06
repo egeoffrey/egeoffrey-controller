@@ -240,6 +240,7 @@ class Hub(Controller):
                 if sensor["format"] == "calendar": value = "<calendar>"
                 elif sensor["format"] == "image": value = "<image>"
                 elif sensor["format"] == "position": value = "<position>"
+                elif sensor["format"] == "tasks": value = "<tasks>"
                 self.log_info("["+self.date.timestamp2date(message.get("timestamp"))+"] ["+sensor_id+"] \""+description+"\": "+str(value))
                 # new values are handled like notifications with a "value" severity
                 alert_text = sensor["description"]+": "+str(value) if "description" in sensor else sensor_id+": "+str(value)
