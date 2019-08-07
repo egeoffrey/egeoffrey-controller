@@ -32,7 +32,7 @@ class Logger(Controller):
         # module's configuration
         self.config = {}
         # logger
-        self.logger = logging.getLogger("myHouse")
+        self.logger = logging.getLogger("eGeoffrey")
         self.rotate_size_mb = 5
         self.rotate_count = 5
         # maximum log messages per second to print
@@ -62,7 +62,7 @@ class Logger(Controller):
             except Exception,e: 
                 print "unable to create directory "+log_dir+": "+exception.get(e)
         if os.path.exists(log_dir):
-            file = logging.handlers.RotatingFileHandler(log_dir+"/myHouse.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
+            file = logging.handlers.RotatingFileHandler(log_dir+"/eGeoffrey.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
             file.setLevel(logging.INFO)
             file.setFormatter(logging.Formatter("%(message)s"))
             self.logger.addHandler(file)

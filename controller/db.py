@@ -48,7 +48,7 @@ class Db(Controller):
     # What to do when initializing    
     def on_init(self):
         # constants
-        self.root_key = "myHouse"
+        self.root_key = "eGeoffrey"
         self.sensors_key = self.root_key+"/sensors"
         self.alerts_key = self.root_key+"/alerts"
         self.logs_key = self.root_key+"/logs"
@@ -193,13 +193,13 @@ class Db(Controller):
                 return False
         return True
 
-    # return myHouse version or None
+    # return eGeoffrey version or None
     def get_version(self):
         version_key = self.version_key
         if not self.exists(version_key): return None
         return self.get(version_key)
 
-    # set myHouse version to the database
+    # set eGeoffrey version to the database
     def set_version(self, version):
         version_key = self.version_key
         self.set_simple(version_key, version)

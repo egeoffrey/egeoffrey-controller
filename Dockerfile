@@ -1,12 +1,12 @@
-### MYHOUSE ###
+### EGEOFFREY ###
 
 ### define base image
 ARG SDK_VERSION
 ARG ARCHITECTURE
-FROM myhouseproject/myhouse-sdk-alpine:${ARCHITECTURE}-${SDK_VERSION}
+FROM egeoffrey/egeoffrey-sdk-alpine:${SDK_VERSION}-${ARCHITECTURE}
 
 ### disable local logging since running logger service
-ENV MYHOUSE_LOGGING_LOCAL=0
+ENV EGEOFFREY_LOGGING_LOCAL=0
 
 ### install module's dependencies
 RUN pip install fuzzywuzzy apscheduler redis==2.10.6 rq==0.12.0

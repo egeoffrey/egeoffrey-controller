@@ -3,10 +3,10 @@ container_config:
   volumes:
   - ./data/config:/config
   - ./data/logs:/logs
-description: The myHouse controller manages the configuration of all the other modules,
+description: The eGeoffrey controller manages the configuration of all the other modules,
   orchestrate sensors and run alerting rules
-dockerhub: myhouseproject/myhouse-controller
-github: myhouse-project/myhouse-controller
+dockerhub: egeoffrey/egeoffrey-controller
+github: egeoffrey/egeoffrey-controller
 icon: gamepad
 manifest_schema: 2
 modules:
@@ -16,7 +16,7 @@ modules:
 - controller/alerter: {}
 - controller/chatbot: {}
 - controller/hub: {}
-package: myhouse-controller
-revision: 25
+package: egeoffrey-controller
+revision: 26
 tags: controller
 version: 1.0

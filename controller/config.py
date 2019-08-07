@@ -28,10 +28,10 @@ class Config(Controller):
     # What to do when initializing    
     def on_init(self):
         # variables
-        self.config_dir = os.getenv("MYHOUSE_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
+        self.config_dir = os.getenv("EGEOFFREY_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
         self.log_debug("Configuration directory set to "+self.config_dir)
-        self.force_reload = int(os.getenv("MYHOUSE_CONFIG_FORCE_RELOAD", 0))
-        self.accept_default_config = int(os.getenv("MYHOUSE_CONFIG_ACCEPT_DEFAULTS", 1))
+        self.force_reload = int(os.getenv("EGEOFFREY_CONFIG_FORCE_RELOAD", 0))
+        self.accept_default_config = int(os.getenv("EGEOFFREY_CONFIG_ACCEPT_DEFAULTS", 1))
         # keep track of the old config index
         self.old_index = None
         self.index_key = "__index"
@@ -279,6 +279,7 @@ class Config(Controller):
                     filename, version = self.parse_filename(filename_with_version)
                     file_content = entry[filename_with_version]
                     # do not overwrite existing files since the user may have changed default values
+                    # TODO: add an option to overwrite existing files (e.g. updated examples)
                     if filename in self.old_index: continue
                     # ensure the file is in a valid YAML format
                     try:
