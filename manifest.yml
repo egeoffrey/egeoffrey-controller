@@ -1,22 +1,19 @@
 branch: development
 container_config:
   volumes:
-  - ./data/config:/config
   - ./data/logs:/logs
-description: The eGeoffrey controller manages the configuration of all the other modules,
-  orchestrate sensors and run alerting rules
+description: The eGeoffrey controller coordinates sensors and run alerting rules
 dockerhub: egeoffrey/egeoffrey-controller
 github: egeoffrey/egeoffrey-controller
 icon: gamepad
 manifest_schema: 2
 modules:
 - controller/logger: {}
-- controller/config: {}
 - controller/db: {}
 - controller/alerter: {}
 - controller/chatbot: {}
 - controller/hub: {}
 package: egeoffrey-controller
-revision: 26
+revision: 27
 tags: controller
 version: 1.0
