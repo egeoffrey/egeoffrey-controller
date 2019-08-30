@@ -41,6 +41,7 @@ class Config(Controller):
         self.load_config_running = False
         self.reload_config = False
         self.clear_config_running = False
+        self.is_config_online = False
     
     # return a hash
     def get_hash(self, content):
@@ -136,7 +137,7 @@ class Config(Controller):
         # 1) build an index of the current configuration
         new_index = self.build_index()
         # 2) request the old index
-        if self.old_index is None: 
+        if self.old_index is None and not self.force_reload: 
             listener = self.add_configuration_listener(self.index_key, self.index_version)
             # sleep by continuously checking if the index has been received
             dec = 0
@@ -144,7 +145,7 @@ class Config(Controller):
                 if self.old_index: break
                 self.sleep(0.1)
                 dec = dec+1
-            #self.remove_listener(listener)
+            self.remove_listener(listener)
         # 3) if there is no old configuration, better clearing up the entire retained configuration
         if not self.old_index or self.force_reload:
             self.log_info("clearing up retained configuration")
@@ -156,7 +157,7 @@ class Config(Controller):
             self.remove_listener(listener)
             self.clear_config_running = False
             self.old_index = {}
-        # reset force
+        # reset force reload
         if self.force_reload: self.force_reload = False
         # 4) publish new/updated configuration files only
         for topic in new_index:
@@ -243,6 +244,25 @@ class Config(Controller):
         self.load_config()
         # receive manifest files with default config
         self.add_broadcast_listener("+/+", "MANIFEST", "#")
+        # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
+        self.sleep(60)
+        while True:
+            # ask for the index
+            self.is_config_online = False
+            listener = self.add_configuration_listener(self.index_key, self.index_version)
+            # sleep by continuously checking if the index has been received
+            dec = 0
+            while (dec <= 20): 
+                if self.is_config_online: break
+                self.sleep(0.1)
+                dec = dec+1
+            self.remove_listener(listener)
+            # looks like the index is no more there, better reloading the config
+            if not self.is_config_online:
+                self.log_warning("configuration has disappear from the gateway, re-publishing it again")
+                self.force_reload = True
+                self.load_config()
+            time.sleep(60)
         
     # What to do when shutting down
     def on_stop(self):
@@ -298,6 +318,7 @@ class Config(Controller):
         # received old index
         if message.args == "__index":
             self.old_index = message.get_data()
+            self.is_config_online = True
             return
         # if receiving other configurations, we probably are in a clear configuration phase, delete them all
         if self.clear_config_running:

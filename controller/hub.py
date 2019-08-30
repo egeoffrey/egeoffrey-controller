@@ -4,7 +4,7 @@
 # OS: 
 # Python: 
 ## CONFIGURATION:
-# required: poll_at_startup, calculate, retain
+# required: calculate, retain
 # optional: 
 ## COMMUNICATION:
 # INBOUND: 
@@ -39,8 +39,6 @@ class Hub(Controller):
         self.config = {}
         # map sensor_id with sensor configuration
         self.sensors = {}
-        # map sensor_id with scheduler job_id
-        self.jobs = {}
         # scheduler is needed for polling sensors
         self.scheduler = Scheduler(self)
         # date/time helper
@@ -104,29 +102,12 @@ class Hub(Controller):
         # clean it up first
         self.remove_sensor(sensor_id)
         self.sensors[sensor_id] = sensor
-        if "service" in sensor and "schedule" in sensor["service"]:
-            # schedule it
-            self.log_debug("Scheduling "+sensor_id+" with the following settings: "+str(sensor["service"]["schedule"]))
-            # "schedule" contains apscheduler settings for this sensor
-            job = sensor["service"]["schedule"]
-            # add function to call and args
-            job["func"] = self.run_sensor
-            job["args"] = [sensor_id]
-            # schedule the job for execution
-            self.jobs[sensor_id] = self.scheduler.add_job(job).id
-            # also run it now if requested
-            # TODO: keep poll_at_startup?
-            if self.config["poll_at_startup"]:
-                self.run_sensor(sensor_id)
                 
     # delete a sensor
     def remove_sensor(self, sensor_id):
         if sensor_id in self.sensors: 
             self.log_debug("Removing sensor "+sensor_id)
             del self.sensors[sensor_id]
-            # if already scheduled, stop it
-            if sensor_id in self.jobs:
-                self.scheduler.remove_job(self.jobs[sensor_id])
         
     # What to do when running
     def on_start(self):
@@ -158,7 +139,11 @@ class Hub(Controller):
             # value is missing, assume the value is in the data
             value = message.get_data()
             message.set("value", value)
-        if not message.has("timestamp"):
+        # if a timestamp is provided, assume it is in UTC format, apply the local timezone
+        if message.has("timestamp"):
+            message.set("timestamp", self.date.timezone(message.get("timestamp")))
+        # if no timestamp is provided, add the current timestamp (in the local timezone)
+        else:
             message.set("timestamp", self.date.now())
         # 2) post-process the value if requested
         sensor = self.sensors[sensor_id]
@@ -195,13 +180,13 @@ class Hub(Controller):
 
     # What to do when receiving a request for this module    
     def on_message(self, message):
+        sensor_id = message.args
+        if sensor_id not in self.sensors:
+            self.log_warning("unable to match service request with registered sensor: "+message.dump())
+            return
         # new value coming from a sensor (solicited or unsolicited), save it
         if message.command == "IN":
             # retrieve the sensor_id for which this message is directed to
-            sensor_id = message.args
-            if sensor_id not in self.sensors:
-                self.log_error("unable to match service request with registered sensor: "+message.dump())
-                return
             sensor = self.sensors[sensor_id]
             # ignore incoming messages for sensors registered as actuators
             if sensor["service"]["mode"] == "actuator": return
@@ -209,12 +194,9 @@ class Hub(Controller):
             self.save_value(sensor_id, message)
         # requested to invoke the service associated to the sensor
         elif message.command == "POLL":
-            sensor_id = message.args
             self.run_sensor(sensor_id)
         # asked to set a new value to a sensor, save it and if the sensor has a service associated, send an OUT message
         elif message.command == "SET":
-            # TODO: check if sensor_id is registered
-            sensor_id = message.args
             sensor = self.sensors[sensor_id]
             # save the value in the db
             self.save_value(sensor_id, message)
@@ -231,7 +213,6 @@ class Hub(Controller):
         elif message.sender == "controller/db" and message.command == "SAVED":
             # catch only new values saved, not aggregations run
             if message.has("from_save") and message.get("from_save"):
-                sensor_id = message.args
                 sensor = self.sensors[sensor_id]
                 # log new value
                 description = sensor["description"] if "description" in sensor else ""
@@ -266,7 +247,7 @@ class Hub(Controller):
         if message.args == self.fullname and not message.is_null:
             if message.config_schema != self.config_schema: 
                 return False
-            if not self.is_valid_configuration(["poll_at_startup", "calculate", "retain"], message.get_data()): return False
+            if not self.is_valid_configuration(["calculate", "retain", "post_processors"], message.get_data()): return False
             self.config = message.get_data()
         # we need the house timezone to set the timestamp when not provided by the sensor
         elif message.args == "house" and not message.is_null:

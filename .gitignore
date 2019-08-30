@@ -5,3 +5,4 @@
 *.pyc
 sdk
 logs
+config

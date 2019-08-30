@@ -9,7 +9,6 @@ calculate:
     operations:
     - avg
     - sum
-poll_at_startup: true
 post_processors:
   celsius->fahrenheit: echo 'print %value% * 1.8 + 32' | python
   fahrenheit->celsius: echo 'print %value% - 32 * 0.56' | python
@@ -32,6 +31,11 @@ retain:
     policies:
       raw: 0
       count: 1
+  last_two_values:
+    description: Retain the last two values only. Recommended for comparing the last with previous values
+    policies:
+      raw: 0
+      count: 2
   short_history:
     description: Retain daily values for the last 5 days, ignore values older than the latest
     policies:

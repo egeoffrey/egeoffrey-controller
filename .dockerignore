@@ -9,3 +9,5 @@ sdk
 sdk/
 logs
 logs/
+config
+config/
