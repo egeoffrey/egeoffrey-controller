@@ -58,7 +58,7 @@ class Hub(Controller):
         # TODO: provide a function for this and check for required arguments
         # TODO: escape "/"
         sensor = self.sensors[sensor_id]
-        if "service" in sensor and sensor["service"]["mode"] == "active":
+        if "service" in sensor and sensor["service"]["mode"] == "pull":
             message = Message(self)
             message.recipient = "service/"+sensor["service"]["name"]
             message.command = "IN"
