@@ -15,6 +15,7 @@ import sys
 reload(sys)  
 sys.setdefaultencoding('utf8')
 import time
+import Queue
 import os
 import logging 
 import logging.handlers
@@ -39,6 +40,9 @@ class Logger(Controller):
         self.max_msg_rate = 5
         self.msg_count = 0
         self.msg_time = time.time()
+        # message queue
+        self.queue = Queue.Queue(10)
+        self.is_logging = False
         # scheduler is needed for purging old logs
         self.scheduler = Scheduler(self)
         # require module configuration before starting up
@@ -76,18 +80,35 @@ class Logger(Controller):
     # What to do when shutting down
     def on_stop(self):
         self.scheduler.stop()
+        
+    # log a message
+    def __do_log(message):
+        # print the message
+        self.logger.info(sdk.python.utils.strings.format_log_line(message.args, message.sender, message.get_data()))
+        # ask db to save the log
+        db_message = Message(self)
+        db_message.recipient = "controller/db"
+        db_message.command = "SAVE_LOG"
+        db_message.args = message.args
+        db_message.set_data("["+message.sender+"] "+str(message.get_data()))
+        self.send(db_message)
     
     # log the message
-    def log(self, log_message):
-        # print the message
-        self.logger.info(sdk.python.utils.strings.format_log_line(log_message.args, log_message.sender, log_message.get_data()))
-        # ask db to save the log
-        message = Message(self)
-        message.recipient = "controller/db"
-        message.command = "SAVE_LOG"
-        message.args = log_message.args
-        message.set_data("["+log_message.sender+"] "+str(log_message.get_data()))
-        self.send(message)
+    def log(self, message):
+        # if logging another message, queue this one
+        if self.is_logging:
+            self.queue.put(message)
+            return
+        # log this message
+        self.is_logging = True
+        self.__do_log(message)
+        # done logging, check if there were queued messages
+        if self.queue.qsize() > 0: 
+            while not self.queue.empty():
+                message = self.queue.get()
+                self.__do_log(message)
+        # release the lock, ready to log a new message
+        self.is_logging = False
         
     # apply configured retention policies for saved logs
     def retention_policies(self):
