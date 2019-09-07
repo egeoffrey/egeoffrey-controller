@@ -82,7 +82,7 @@ class Logger(Controller):
         self.scheduler.stop()
         
     # log a message
-    def __do_log(message):
+    def __do_log(self, message):
         # print the message
         self.logger.info(sdk.python.utils.strings.format_log_line(message.args, message.sender, message.get_data()))
         # ask db to save the log

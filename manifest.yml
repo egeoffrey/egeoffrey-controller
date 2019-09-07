@@ -19,6 +19,6 @@ modules:
 - controller/chatbot: {}
 - controller/hub: {}
 package: egeoffrey-controller
-revision: 33
+revision: 34
 tags: controller
 version: 1.0
