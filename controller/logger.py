@@ -15,7 +15,7 @@ import sys
 reload(sys)  
 sys.setdefaultencoding('utf8')
 import time
-import Queue
+import collections
 import os
 import logging 
 import logging.handlers
@@ -41,7 +41,7 @@ class Logger(Controller):
         self.msg_count = 0
         self.msg_time = time.time()
         # message queue
-        self.queue = Queue.Queue(10)
+        self.queue = collections.deque(maxlen=50)
         self.is_logging = False
         # scheduler is needed for purging old logs
         self.scheduler = Scheduler(self)
@@ -97,16 +97,18 @@ class Logger(Controller):
     def log(self, message):
         # if logging another message, queue this one
         if self.is_logging:
-            self.queue.put(message)
+            self.queue.append(message)
             return
         # log this message
         self.is_logging = True
         self.__do_log(message)
         # done logging, check if there were queued messages
-        if self.queue.qsize() > 0: 
-            while not self.queue.empty():
-                message = self.queue.get()
+        while True:
+            try:
+                message = self.queue.popleft()
                 self.__do_log(message)
+            except IndexError:
+                break
         # release the lock, ready to log a new message
         self.is_logging = False
         
