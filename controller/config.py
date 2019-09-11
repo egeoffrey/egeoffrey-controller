@@ -136,6 +136,9 @@ class Config(Controller):
         self.load_config_running = True
         # 1) build an index of the current configuration
         new_index = self.build_index()
+        if new_index is None:
+            self.log_error("Unable to load configuration from "+self.config_dir)
+            return
         # 2) request the old index
         if self.old_index is None and not self.force_reload: 
             listener = self.add_configuration_listener(self.index_key, self.index_version)
@@ -240,6 +243,12 @@ class Config(Controller):
     
     # What to do when running
     def on_start(self):
+        # ensure config path exists, otherwise create it
+        if not os.path.exists(self.config_dir):
+            try:
+                os.makedirs(self.config_dir)
+            except Exception,e: 
+                self.log_error("unable to create directory "+self.config_dir+": "+exception.get(e))
         # TODO: handle reconnection. cannot be moved into on_connect or will not work
         self.load_config()
         # receive manifest files with default config

@@ -3,8 +3,8 @@ container_config:
   environment:
   - EGEOFFREY_LOGGING_LOCAL=0
   volumes:
-  - ./data/logs:/egeoffrey/logs
-  - ./data/config:/egeoffrey/config
+  - ./data/egeoffrey/logs:/egeoffrey/logs
+  - ./data/egeoffrey/config:/egeoffrey/config
 description: The eGeoffrey controller manages the configuration of all the modules
   and coordinates sensors and run alerting rules
 dockerhub: egeoffrey/egeoffrey-controller
@@ -19,6 +19,6 @@ modules:
 - controller/chatbot: {}
 - controller/hub: {}
 package: egeoffrey-controller
-revision: 35
+revision: 36
 tags: controller
 version: 1.0
