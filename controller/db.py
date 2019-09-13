@@ -30,6 +30,7 @@ sys.setdefaultencoding('utf8')
 import time
 import redis
 import re
+import os
 import json
 import datetime
 from math import radians, cos, sin, asin, sqrt
@@ -62,6 +63,10 @@ class Db(Controller):
         # date/time helper
         self.date = None
         self.house = None
+        # configuration override
+        self.hostname = os.getenv("EGEOFFREY_DATABASE_HOSTNAME", None)
+        self.port = os.getenv("EGEOFFREY_DATABASE_PORT", None)
+        self.database = os.getenv("EGEOFFREY_DATABASE_NUMBER", None)
         # request required configuration files
         self.config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
@@ -69,15 +74,18 @@ class Db(Controller):
     
     # connect to the database
     def connect(self):
+        hostname = self.hostname if self.hostname is not None else self.config["hostname"]
+        port = self.port if self.port is not None else self.config["port"]
+        database = self.database if self.database is not None else self.config["database"]
         while not self.db_connected:
             try: 
-                self.log_debug("Connecting to database "+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"]))
-                self.db = redis.StrictRedis(host=self.config["hostname"], port=self.config["port"], db=self.config["database"])
+                self.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
+                self.db = redis.StrictRedis(host=hostname, port=port, db=database)
                 if self.db.ping():
-                    self.log_info("Connected to database #"+str(self.config["database"])+" at "+self.config["hostname"]+":"+str(self.config["port"])+", redis version "+self.db.info().get('redis_version'))
+                    self.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db.info().get('redis_version'))
                     self.db_connected = True
             except Exception,e:
-                self.log_error("Unable to connect to "+self.config["hostname"]+":"+str(self.config["port"]))
+                self.log_error("Unable to connect to "+hostname+":"+str(port))
                 self.sleep(5)
                 if self.stopping: break
     
