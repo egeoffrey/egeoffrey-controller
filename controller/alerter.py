@@ -50,6 +50,10 @@ class Alerter(Controller):
         self.last_run = {}
         # map rule_id with scheduler job_id
         self.jobs = {}
+        # map sendor_id with sensor configuration
+        self.sensors = {}
+        # map for each rule_id/variable, the associated sensor_id
+        self.variables = {}
         # scheduler is needed for scheduling rules
         self.scheduler = Scheduler(self)
         # regular expression used to parse variables
@@ -57,6 +61,7 @@ class Alerter(Controller):
         # require module configuration before starting up
         self.config_schema = 1
         self.rules_config_schema = 1
+        self.sensors_config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
         # subscribe for acknowledgments from the database for saved values
         self.add_inspection_listener("controller/db", "*/*", "SAVED", "#")
@@ -113,6 +118,11 @@ class Alerter(Controller):
                 else: value = self.values[rule_id][repeat_for_i][placeholder][0]
             else:
                 value = self.values[rule_id][repeat_for_i][placeholder]
+            # append the unit to the value if we got this sensor's configuration
+            if rule_id in self.variables and placeholder in self.variables[rule_id]:
+                sensor_id = self.variables[rule_id][placeholder]
+                if sensor_id in self.sensors and "unit" in self.sensors[sensor_id]:
+                    value = str(value)+str(self.sensors[sensor_id]["unit"])
             text = text.replace("%"+placeholder+"%", str(value))
         return text
 
@@ -247,10 +257,15 @@ class Alerter(Controller):
                     message.args = rule_to_run
                     self.send(message)
         # 3) format the alert text
-        # TODO: sensor's unit to alert_text + sensor description for %i%
-        alert_text = rule["text"].replace("%i%", repeat_for_i)
+        replace_text = repeat_for_i
+        # if this is a sensor_id, replace with the description if available
+        if repeat_for_i in self.sensors:
+            sensor = self.sensors[repeat_for_i]
+            if "description" in sensor:
+                replace_text = sensor["description"]
+        alert_text = rule["text"].replace("%i%", replace_text)
         # replace constants and variables placeholders in the alert text with their values
-        # TODO: aliases, suffix
+        # TODO: aliases
         alert_text = self.format_placeholders(rule_id, repeat_for_i, alert_text)
         # 4) notify about the alert and save it
         if rule["severity"] != "none" and rule_id not in self.on_demand:
@@ -303,22 +318,38 @@ class Alerter(Controller):
             # schedule the job for execution and keep track of the job id
             self.jobs[rule_id] = self.scheduler.add_job(job).id
         # for realtime rules, rule will be run every time one of the variables will change value
-        elif rule["type"] == "realtime":
-            if "variables" in rule:
-                # when "for" is used, the same rule is run independently for each item 
-                repeat_for = rule["for"] if "for" in rule else ["_default_"]
-                for repeat_for_i in repeat_for:
-                    for variable_id, variable in rule["variables"].iteritems():
-                        # a variable can contain %i% which is replaced with every item of "for"
-                        variable_i = variable.replace("%i%", repeat_for_i)
-                        # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                        match = re.match(self.variable_regexp, variable_i)
-                        if match is None: return
-                        command, start, end, sensor_id = match.groups()
-                        # add the sensor_id to the triggers so the rule will be run upon any change
+        if "variables" in rule:
+            # when "for" is used, the same rule is run independently for each item 
+            repeat_for = rule["for"] if "for" in rule else ["_default_"]
+            for repeat_for_i in repeat_for:
+                for variable_id, variable in rule["variables"].iteritems():
+                    # a variable can contain %i% which is replaced with every item of "for"
+                    variable_i = variable.replace("%i%", repeat_for_i)
+                    # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
+                    match = re.match(self.variable_regexp, variable_i)
+                    if match is None: return
+                    command, start, end, sensor_id = match.groups()
+                    # request sensor's configuration for each variable
+                    if command == "":
+                        # remove any sub query (e.g. day/avg)
+                        sensor_name = re.sub(r'\/(day|hour)\/[^\/]+$', '', sensor_id)
+                        if sensor_name not in self.sensors:
+                            # request the sensor's configuration
+                            self.add_configuration_listener("sensors/"+sensor_name, self.sensors_config_schema)
+                            # keep track of the associated between this variable_id and the sensor
+                            if rule_id not in self.variables:
+                                self.variables[rule_id] = {}
+                            self.variables[rule_id][variable_id] = sensor_name
+                    # add the sensor_id to the triggers so the rule will be run upon any change
+                    if rule["type"] == "realtime":
                         if sensor_id not in self.triggers:
                             self.triggers[sensor_id] = []
                         self.triggers[sensor_id].append(rule_id)
+        # request sensor's configuration for each for i
+        if "for" in rule:
+            for sensor_id in rule["for"]:
+                if sensor_id not in self.sensors:
+                    self.add_configuration_listener("sensors/"+sensor_id, self.sensors_config_schema)
     
     # remove a rule
     def remove_rule(self, rule_id):
@@ -398,6 +429,16 @@ class Alerter(Controller):
             # ensure the configuration file contains all required settings
             if not self.is_valid_configuration(["retention"], message.get_data()): return False
             self.config = message.get_data()
+        # add/remove sensors
+        elif message.args.startswith("sensors/"):
+            sensor_id = message.args.replace("sensors/","")
+            # deleted sensor
+            if message.is_null:
+                if sensor_id in self.sensors: 
+                    del self.sensors[sensor_id]
+            # receiving sensor configuration
+            else:
+                self.sensors[sensor_id] = message.get_data()
         # add/remove rule
         elif message.args.startswith("rules/"):
             if not self.configured: return
