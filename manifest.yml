@@ -12,13 +12,70 @@ github: egeoffrey/egeoffrey-controller
 icon: gamepad
 manifest_schema: 2
 modules:
-- controller/logger: {}
-- controller/db: {}
-- controller/config: {}
-- controller/alerter: {}
-- controller/chatbot: {}
-- controller/hub: {}
+- controller/logger:
+    description: Takes care of collecting the logs from all the local and remote modules,
+      storing them in the database and printing them out
+    module_configuration:
+    - description: Number of days to keep old logs in the database
+      format: int
+      name: retention
+      placeholder: 6
+      required: true
+- controller/db:
+    description: Connects to the database and runs queries on behalf of other modules
+    module_configuration:
+    - description: The IP/hostname the Redis database is listening to
+      format: string
+      name: hostname
+      placeholder: egeoffrey-database
+      required: true
+    - description: The port the Redis database is listening to
+      format: int
+      name: port
+      placeholder: 6379
+      required: true
+    - description: The database number to use for storing the information
+      format: int
+      name: database
+      placeholder: 1
+      required: true
+- controller/config:
+    description: Stores configuration files on behalf of all the modules and makes
+      them available
+- controller/alerter:
+    description: Keep running the configured rules which would trigger notifications
+    module_configuration:
+    - description: Number of days to keep old logs in the database
+      format: int
+      name: retention
+      placeholder: 6
+      required: true
+- controller/chatbot:
+    description: Interactive chatbot service
+    module_configuration:
+    - description: Chatbot's basic vocabulary
+      format: dict
+      name: vocabulary
+      required: true
+- controller/hub:
+    description: Hub for collecting new measures from sensors
+    module_configuration:
+    - description: Aggregation policies that can be associated to sensors to e.g.
+        automatically calculate average, minimum and maximum per hour/day
+      format: dict
+      name: calculate
+      required: true
+    - description: Retention policies that can be associated to sensors to e.g. automatically
+        purge old values from the database
+      format: dict
+      name: retain
+      required: true
+    - description: Set of available post processing commands that can be associated
+        to sensors to e.g. automatically post-process a new value once collected
+      format: dict
+      name: post_processors
+      required: true
 package: egeoffrey-controller
-revision: 38
+revision: 39
 tags: controller
 version: 1.0
