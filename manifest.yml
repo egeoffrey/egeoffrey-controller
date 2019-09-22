@@ -1,4 +1,4 @@
-branch: development
+branch: master
 container_config:
   environment:
   - EGEOFFREY_LOGGING_LOCAL=0
@@ -76,6 +76,6 @@ modules:
       name: post_processors
       required: true
 package: egeoffrey-controller
-revision: 42
+revision: 43
 tags: controller
 version: 1.0
