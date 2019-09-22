@@ -224,6 +224,7 @@ class Db(Controller):
             # ensure time boundaries are correct
             if start == 0 or end == 0 or end-start > 60*60:
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
+                return
         elif group_by == "day":
             # read hourly averages
             key_to_read = key+"/hour/avg" 
@@ -232,6 +233,7 @@ class Db(Controller):
             # ensure time boundaries are correct
             if start == 0 or end == 0 or end-start > 24*60*60:
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
+                return
         # retrieve from the database the data based on the given timeframe
         data = self.rangebyscore(key_to_read, start, end, withscores=True)
         # split between values and timestamps
