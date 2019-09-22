@@ -216,12 +216,22 @@ class Db(Controller):
     def calculate(self, sensor_id, calculations, group_by, start, end):
         # set the database keys to read from and write into
         key = self.sensors_key+"/"+sensor_id
-        if group_by == "hour": 
-            key_to_read = key # read raw measures
-            key_to_write = key+"/hour" # write hourly summary
+        if group_by == "hour":
+            # read raw measures        
+            key_to_read = key 
+            # write hourly summary
+            key_to_write = key+"/hour" 
+            # ensure time boundaries are correct
+            if start == 0 or end == 0 or end-start > 60*60:
+                self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
         elif group_by == "day":
-            key_to_read = key+"/hour/avg" # read hourly averages
-            key_to_write = key+"/day" # write daily summary
+            # read hourly averages
+            key_to_read = key+"/hour/avg" 
+            # write daily summary
+            key_to_write = key+"/day" 
+            # ensure time boundaries are correct
+            if start == 0 or end == 0 or end-start > 24*60*60:
+                self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
         # retrieve from the database the data based on the given timeframe
         data = self.rangebyscore(key_to_read, start, end, withscores=True)
         # split between values and timestamps
@@ -372,12 +382,13 @@ class Db(Controller):
             key = self.sensors_key+"/"+sensor_id
             # define which stat to purge for each dataset
             targets = {
-                "data": [""],
+                "raw": [""],
                 "hourly": ["/hour/min","/hour/avg","/hour/max","/hour/rate"],
                 "daily": ["/day/min","/day/avg","/day/max","/day/rate"],
             }
             # for each dataset, purge the associated subkeys
             for dataset, subkeys in targets.iteritems():
+                if dataset not in policies: continue
                 retention = policies[dataset]
                 if retention == 0: continue # keep data forever
                 # for each stat to purge
@@ -491,7 +502,7 @@ class Db(Controller):
             # 5) if range is requested, start asking for min first
             # TODO: evaluate to calculate a range statistics automatically (how to store data structure?)
             is_range = False
-            if query["key"].endswith("/range"): 
+            if query["key"].endswith("/range"):
                 is_range = True
                 query["key"] = re.sub("/range$", "/min", query["key"])
             # 6) call the function mapping parameters with message payload input

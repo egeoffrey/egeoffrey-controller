@@ -93,7 +93,7 @@ class Hub(Controller):
                 message.recipient = "controller/db"
                 message.command = "PURGE_SENSOR"
                 message.args = sensor_id
-                message.set_data(self.config["retain"][sensor["retain"]])
+                message.set_data(self.config["retain"][sensor["retain"]]["policies"])
                 self.send(message)
 
     # schedule a given sensor for execution
@@ -116,13 +116,14 @@ class Hub(Controller):
         # 2) schedule statistics calculation
         # TODO: what if different houses live in different timezones
         # every hour (just after the top of the hour) calculate for each sensor statistics of the previous hour
-        job = {"func": self.calculate_stats, "trigger":"cron", "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["hour"]}
+        job = {"func": self.calculate_stats, "trigger": "cron", "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["hour"]}
         self.scheduler.add_job(job)
         # every day (just after midnight) calculate for each sensor statistics of the previous day (using hourly averages)
-        job = {"func": self.calculate_stats, "trigger":"cron", "hour": 0, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["day"]}
+        job = {"func": self.calculate_stats, "trigger": "cron", "hour": 0, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["day"]}
         self.scheduler.add_job(job)
         # 3) schedule to apply configured retention policies (every day just after 1am)
         job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
+        self.scheduler.add_job(job)
         # 4) start the scheduler 
         self.scheduler.start()
         # TODO: should be able to detect DST change and reschedule all the jobs
