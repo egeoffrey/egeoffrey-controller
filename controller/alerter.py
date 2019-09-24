@@ -162,8 +162,8 @@ class Alerter(Controller):
                     message.recipient = "controller/db"
                     message.command = message.command = "GET_"+command if command != "" else "GET"
                     message.args = sensor_id
-                    start = -1 if start is None else start
-                    end = -1 if end is None else end
+                    start = -1 if start is None else int(start)
+                    end = -1 if end is None else int(end)
                     message.set("start", start)
                     message.set("end", end)
                     self.sessions.register(message, {
