@@ -83,4 +83,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.0-43 on the master branch.
+The version of this egeoffrey-controller is 1.0-44 on the master branch.
