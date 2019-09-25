@@ -1,0 +1,5 @@
+database_enable: true
+database_retention: 6
+file_enable: true
+file_rotate_size: 5
+file_rotate_count: 5

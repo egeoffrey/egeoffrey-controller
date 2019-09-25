@@ -23,7 +23,11 @@ For each module, if requiring a configuration file to start, its settings will b
 To configure each module included in this package, once started, click on the *'Edit Configuration'* button on the *'eGeoffrey Admin'* / *'Modules'* page of your eGeoffrey instance.
 - **controller/logger**: takes care of collecting the logs from all the local and remote modules, storing them in the database and printing them out
   - Module configuration:
-    - *retention**: number of days to keep old logs in the database (e.g. 6)
+    - *database_enable**: enable logging into the database
+    - *database_retention**: number of days to keep old logs in the database (e.g. 6)
+    - *file_enable**: enable logging to file (in the /logs directory)
+    - *file_rotate_size**: rotate the log file when reaching this size (in megabytes) (e.g. 5)
+    - *file_rotate_count**: number of files to keep when rotating the logs (e.g. 5)
 - **controller/db**: connects to the database and runs queries on behalf of other modules
   - Module configuration:
     - *hostname**: the IP/hostname the Redis database is listening to (e.g. egeoffrey-database)
@@ -83,4 +87,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.0-46 on the master branch.
+The version of this egeoffrey-controller is 1.0-47 on the master branch.

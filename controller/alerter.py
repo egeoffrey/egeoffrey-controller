@@ -17,10 +17,6 @@
 # - */* NOTIFY: notify output modules
 # - controller/db PURGE_ALERTS: periodically purge old alerts from db
 
-# TODO: move this into sdk
-import sys 
-reload(sys)  
-sys.setdefaultencoding('utf8')
 import re
 import time
 
@@ -75,7 +71,6 @@ class Alerter(Controller):
         if a is None or b is None: return None
         if not sdk.python.utils.numbers.is_number(a) or not sdk.python.utils.numbers.is_number(b): return None
         # calculate the expression
-        # TODO: contains?
         if operator == "+": return float(a)+float(b)
         elif operator == "-": return float(a)-float(b)
         elif operator == "*": return float(a)*float(b)
@@ -163,7 +158,7 @@ class Alerter(Controller):
                     message.command = message.command = "GET_"+command if command != "" else "GET"
                     message.args = sensor_id
                     start = -1 if start is None else int(start)
-                    end = -1 if end is None else int(end)
+                    end = -1 if end is None else int(end.replace(",",""))
                     message.set("start", start)
                     message.set("end", end)
                     self.sessions.register(message, {
@@ -210,7 +205,6 @@ class Alerter(Controller):
                 # evaluate the main expression
                 a, operator, b = and_conditions.split(' ')
                 a_value = self.values[rule_id][repeat_for_i][a]
-                # TODO: make this a function
                 b_value = self.values[rule_id][repeat_for_i][b]
                 sub_evaluation = self.is_true(a_value, operator, b_value)
                 self.log_debug("["+rule_id+"]["+repeat_for_i+"] evaluating condition "+a+" ("+sdk.python.utils.strings.truncate(str(a_value), 50)+") "+operator+" "+b+" ("+sdk.python.utils.strings.truncate(str(b_value), 50)+"): "+str(sub_evaluation))
@@ -234,10 +228,8 @@ class Alerter(Controller):
         if "actions" in rule:
             for action in rule["actions"]:
                 action = re.sub(' +', ' ', action).replace("%i%", repeat_for_i)
-                # TODO: make this a function
                 # replace constants and variables placeholders in the action with their values
                 action = self.format_placeholders(rule_id, repeat_for_i, action)
-                # TODO: ifnotexists, force
                 # execute the action
                 action_split = action.split(" ")
                 command = action_split[0]
@@ -267,7 +259,6 @@ class Alerter(Controller):
                 replace_text = sensor["description"]
         alert_text = rule["text"].replace("%i%", replace_text)
         # replace constants and variables placeholders in the alert text with their values
-        # TODO: aliases
         alert_text = self.format_placeholders(rule_id, repeat_for_i, alert_text)
         # 4) notify about the alert and save it
         if rule["severity"] != "none" and rule_id not in self.on_demand:
@@ -307,7 +298,6 @@ class Alerter(Controller):
         # clean it up first
         self.remove_rule(rule_id)
         self.rules[rule_id] = rule
-        # TODO: "startup" rules
         # rule will be run upon a schedule
         if rule["type"] == "recurrent":
             # schedule the rule execution
@@ -443,14 +433,17 @@ class Alerter(Controller):
                 self.sensors[sensor_id] = message.get_data()
         # add/remove rule
         elif message.args.startswith("rules/"):
-            if not self.configured: return
+            if not self.configured: 
+                return
             if message.config_schema != self.rules_config_schema: 
                 return
             rule_id = message.args.replace("rules/","")
-            if message.is_null: self.remove_rule(rule_id)
-            # TODO: check rule mandatory config
+            if message.is_null: 
+                self.remove_rule(rule_id)
             else: 
                 rule = message.get_data()
-                if "disabled" in rule and rule["disabled"]: self.remove_rule(rule_id)
+                if not self.is_valid_configuration(["text", "type", "severity"], rule): return
+                if "disabled" in rule and rule["disabled"]: 
+                    self.remove_rule(rule_id)
                 else: self.add_rule(rule_id, rule)
             

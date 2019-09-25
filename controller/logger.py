@@ -11,9 +11,6 @@
 # - LOG: print out a new log message
 # OUTBOUND: 
 
-import sys 
-reload(sys)  
-sys.setdefaultencoding('utf8')
 import time
 import collections
 import os
@@ -46,7 +43,7 @@ class Logger(Controller):
         # scheduler is needed for purging old logs
         self.scheduler = Scheduler(self)
         # require module configuration before starting up
-        self.config_schema = 1
+        self.config_schema = 2
         self.add_configuration_listener(self.fullname, "+", True)
         
     # What to do when running    
@@ -66,12 +63,12 @@ class Logger(Controller):
             except Exception,e: 
                 print "unable to create directory "+log_dir+": "+exception.get(e)
         if os.path.exists(log_dir):
-            file = logging.handlers.RotatingFileHandler(log_dir+"/eGeoffrey.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
+            file = logging.handlers.RotatingFileHandler(log_dir+"/egeoffrey.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
             file.setLevel(logging.INFO)
             file.setFormatter(logging.Formatter("%(message)s"))
             self.logger.addHandler(file)
         # schedule to apply configured retention policies to the logs stored into the database
-        job = {"func": self.retention_policies, "trigger":"cron", "hour": 1, "minute": 0, "second": sdk.python.utils.numbers.randint(1,59)}
+        job = {"func": self.retention_policies, "trigger":"interval", "hours": 1}
         self.scheduler.add_job(job)
         # start the scheduler 
         self.scheduler.start()
@@ -141,9 +138,19 @@ class Logger(Controller):
 
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
-        # TODO: add configuration (db yes/no, etc.)
         # module's configuration
         if message.args == self.fullname and not message.is_null:
+            # upgrade the config schema
+            if message.config_schema == 1:
+                config = message.get_data()
+                config["database_retention"] = config["retention"]
+                del config["retention"]
+                config["database_enable"] = True
+                config["file_enable"] = True
+                config["file_rotate_size"] = 5
+                config["file_rotate_count"] = 5
+                self.upgrade_config(message.args, message.config_schema, 2, config)
+                return False
             if message.config_schema != self.config_schema: 
                 return False
             self.config = message.get_data()

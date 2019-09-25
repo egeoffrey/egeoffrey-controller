@@ -24,9 +24,6 @@
 # OUTBOUND: 
 # - */* SAVED: notify a new measure has been saved
 
-import sys 
-reload(sys)  
-sys.setdefaultencoding('utf8')
 import time
 import redis
 import re
@@ -60,6 +57,7 @@ class Db(Controller):
         # database object
         self.db = None
         self.db_connected = False
+        self.db_schema_version = 1
         # date/time helper
         self.date = None
         self.house = None
@@ -142,7 +140,6 @@ class Db(Controller):
         return self.db.get(key)
 
     # get a range of values from the db based on the timestamp
-    # TODO: def rangebyscore(key, start=sdk.python.utils.recent(), end=sdk.python.utils.now(), withscores=True, milliseconds=False, format_date=False, formatter=None):
     def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if start is None: start = self.date.now()-24*3600
         if end is None: end = self.date.now()
@@ -189,17 +186,24 @@ class Db(Controller):
         return self.db.flushdb()
 
     # initialize an empty database
-    def init(self):
-        self.version = self.get_version()
+    def init_database(self):
+        version = self.get_version()
+        # no version found, assuming first installation
         if version is None:
-            # first installation
-            self.set_version(sdk.python.constants.version) 
-            return True
+            self.log_info("Setting database schema to v"+str(self.db_schema_version))
+            self.set_version(self.db_schema_version)
         else:
-            if version != sdk.python.constants.version: 
-                self.log_error("Expecting v"+str(sdk.python.constants.version)+" but found v"+str(version)+")")
-                return False
-        return True
+            version = int(version)
+            # already at the latest version
+            if version == self.db_schema_version:
+                pass
+            # database schema needs to be upgraded
+            elif version < self.db_schema_version: 
+                pass
+            # higher version, something strange is happening
+            elif version > self.db_schema_version: 
+                self.log_error("database schema v"+str(version)+" is higher than the supported schema v"+str(self.db_schema_version))
+
 
     # return eGeoffrey version or None
     def get_version(self):
@@ -294,7 +298,8 @@ class Db(Controller):
     def on_start(self):
         # connect to the database
         self.connect()
-        # TODO: call init()?
+        # initialize the database if needed 
+        self.init_database()
         
     # What to do when shutting down
     def on_stop(self):
@@ -346,7 +351,6 @@ class Db(Controller):
             ack_message.args = item_id
             ack_message.set("from_save", True)
             ack_message.set("timestamp", message.get("timestamp"))
-            # TODO: truncate the value since not fully used
             ack_message.set("value", sdk.python.utils.strings.truncate(message.get("value"), 50))
             if message.has("statistics"):
                 ack_message.set("group_by", message.get("statistics").split("/")[0])
@@ -456,7 +460,6 @@ class Db(Controller):
         
         # query the database
         elif message.command.startswith("GET"):
-            # TODO: run service on request?
             # 1) initialize query objecy. payload will be passed to the range* function, adding missing parameter key
             query = message.get_data().copy() if isinstance(message.get_data(), dict) else {}
             # select which area of the database to query (default to sensors)
@@ -502,7 +505,6 @@ class Db(Controller):
                 query["withscores"] = True
             if "withscores" not in query: query["withscores"] = False
             # 5) if range is requested, start asking for min first
-            # TODO: evaluate to calculate a range statistics automatically (how to store data structure?)
             is_range = False
             if query["key"].endswith("/range"):
                 is_range = True
@@ -534,7 +536,7 @@ class Db(Controller):
             # the distance of the measure from this house is requested
             elif message.command == "GET_DISTANCE":
                 if len(data) == 0: return []
-                # TODO: handle multiple entries
+                # get position (only the first one if multiple are provided)
                 try:
                     position = json.loads(data[0])
                 except Exception,e: 

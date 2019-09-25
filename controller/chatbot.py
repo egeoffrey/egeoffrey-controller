@@ -13,9 +13,6 @@
 # - controller/alerter RUN: run a rule
 # - controller/db GET: request value of a sensor to the database
 
-import sys
-reload(sys)  
-sys.setdefaultencoding('utf8')
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 import re
@@ -34,9 +31,9 @@ class Chatbot(Controller):
         self.cleanup = re.compile('[^a-zA-Z ]')
         # static/user vocabulary from the configuration
         self.vocabulary = {}
-        # dynamic vocabulary from rules
+        # dynamic vocabulary from rules, map rule text with rule_id
         self.vocabulary_rules = {}
-        # dynamic vocabulary from sensors
+        # dynamic vocabulary from sensors, map sensor text with sensor_id
         self.vocabulary_sensors_text = {}
         self.vocabulary_sensors_image = {}
         # map sensor_id to sensor
@@ -166,8 +163,24 @@ class Chatbot(Controller):
             
      # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):
-        # TODO: remove from vocabulary
-        if message.is_null: return
+        if message.is_null: 
+            # remove sensor from vocabulary
+            if message.args.startswith("sensors/"):
+                sensor_id = message.args.replace("sensors/","")
+                if sensor_id in list(self.sensors):
+                    self.log_debug("removing sensor "+sensor_id+" from the vocabulary")
+                    del self.sensors[sensor_id]
+                for vocabulary in [self.vocabulary_sensors_text, self.vocabulary_sensors_image]:
+                    for keyword in list(vocabulary):
+                        if vocabulary[keyword][0] == sensor_id:
+                            del vocabulary[keyword]
+            # remove rule from vocabulary
+            elif message.args.startswith("rules/"):
+                rule_id = message.args.replace("rules/","")
+                vocabulary = self.vocabulary_rules
+                for keyword in list(vocabulary):
+                    if vocabulary[keyword][0] == rule_id:
+                        del vocabulary[keyword]
         # module's configuration
         if message.args == self.fullname and not message.is_null:
             if message.config_schema != self.config_schema: 

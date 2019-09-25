@@ -10,15 +10,15 @@ calculate:
     - avg
     - sum
 post_processors:
-  celsius->fahrenheit: echo 'print %value% * 1.8 + 32' | python
-  fahrenheit->celsius: echo 'print %value% - 32 * 0.56' | python
-  hg->mb: echo 'print %value% * 33.86' | python
-  inch->mm: echo 'print %value% * 25.4' | python
-  km->mile: echo 'print %value% / 1.609' | python
-  mb->hg: echo 'print %value% /33.86' | python
-  meter->km: echo 'print %value% / 1000' | python
-  mile->km: echo 'print %value% * 1.609' | python
-  mm->inch: echo 'print %value% / 25.4' | python
+  celsius_to_fahrenheit: echo 'print %value% * 1.8 + 32' | python
+  fahrenheit_to_celsius: echo 'print %value% - 32 * 0.56' | python
+  hg_to_mb: echo 'print %value% * 33.86' | python
+  inch_to_mm: echo 'print %value% * 25.4' | python
+  km_to_mile: echo 'print %value% / 1.609' | python
+  mb_to_hg: echo 'print %value% /33.86' | python
+  meter_to_km: echo 'print %value% / 1000' | python
+  mile_to_km: echo 'print %value% * 1.609' | python
+  mm_to_inch: echo 'print %value% / 25.4' | python
 retain:
   history:
     description: Retain values for 5 days, hourly averages for 5 days and daily averages forever. Recommended for timeseries data

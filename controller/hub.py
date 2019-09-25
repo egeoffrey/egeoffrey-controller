@@ -18,10 +18,6 @@
 # - controller/db PURGE_SENSOR: periodically purge old data
 # - controller/db SAVE: save new measures
 
-import sys
-reload(sys)  
-sys.setdefaultencoding('utf8')
-
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
 from sdk.python.module.helpers.message import Message
@@ -55,8 +51,6 @@ class Hub(Controller):
     # what to do during execution of the sensor's schedule
     def run_sensor(self, sensor_id):
         # prepare and send a message to the requested module
-        # TODO: provide a function for this and check for required arguments
-        # TODO: escape "/"
         sensor = self.sensors[sensor_id]
         if "service" in sensor and sensor["service"]["mode"] == "pull":
             message = Message(self)
@@ -114,7 +108,6 @@ class Hub(Controller):
         # 1) ask for all sensor's configuration
         self.add_configuration_listener("sensors/#", "+")
         # 2) schedule statistics calculation
-        # TODO: what if different houses live in different timezones
         # every hour (just after the top of the hour) calculate for each sensor statistics of the previous hour
         job = {"func": self.calculate_stats, "trigger": "cron", "minute": 0, "second": sdk.python.utils.numbers.randint(1,59), "args": ["hour"]}
         self.scheduler.add_job(job)
@@ -126,7 +119,6 @@ class Hub(Controller):
         self.scheduler.add_job(job)
         # 4) start the scheduler 
         self.scheduler.start()
-        # TODO: should be able to detect DST change and reschedule all the jobs
         
     # What to do when shutting down
     def on_stop(self):
@@ -159,13 +151,10 @@ class Hub(Controller):
                 return
         # 3) normalize the value according to its format
         try:
-            # TODO: format does not exist anymore
             message.set("value", sdk.python.utils.numbers.normalize(message.get("value"), sensor["format"]))
         except Exception,e: 
-            # TODO: make exception part of the class
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
             return
-        #TODO: ifnotexists?
         # 4) attach retention policies to be applied straight away
         if "retain" in sensor and sensor["retain"] in self.config["retain"]:
             message.set("retain", self.config["retain"][sensor["retain"]]["policies"])
@@ -256,13 +245,15 @@ class Hub(Controller):
             self.date = DateTimeUtils(message.get("timezone"))
         # add/remove sensor
         elif message.args.startswith("sensors/"):
-            if not self.configured: return
+            if not self.configured: 
+                return
             if message.config_schema != self.sensors_config_schema: 
                 return
             sensor_id = message.args.replace("sensors/","")
-            if message.is_null: self.remove_sensor(sensor_id)
-            # TODO: check sensor mandatory config
+            if message.is_null: 
+                self.remove_sensor(sensor_id)
             else: 
                 sensor = message.get_data()
+                if not self.is_valid_configuration(["format"], sensor): return
                 if "disabled" in sensor and sensor["disabled"]: self.remove_sensor(sensor_id)
                 else: self.add_sensor(sensor_id, sensor)

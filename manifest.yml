@@ -16,10 +16,28 @@ modules:
     description: Takes care of collecting the logs from all the local and remote modules,
       storing them in the database and printing them out
     module_configuration:
+    - description: Enable logging into the database
+      format: checkbox
+      name: database_enable
+      required: true
     - description: Number of days to keep old logs in the database
       format: int
-      name: retention
+      name: database_retention
       placeholder: 6
+      required: true
+    - description: Enable logging to file (in the /logs directory)
+      format: checkbox
+      name: file_enable
+      required: true
+    - description: Rotate the log file when reaching this size (in megabytes)
+      format: int
+      name: file_rotate_size
+      placeholder: 5
+      required: true
+    - description: Number of files to keep when rotating the logs
+      format: int
+      name: file_rotate_count
+      placeholder: 5
       required: true
 - controller/db:
     description: Connects to the database and runs queries on behalf of other modules
@@ -76,6 +94,6 @@ modules:
       name: post_processors
       required: true
 package: egeoffrey-controller
-revision: 46
+revision: 47
 tags: controller
 version: 1.0

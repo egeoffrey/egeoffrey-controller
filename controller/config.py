@@ -76,7 +76,7 @@ class Config(Controller):
                 name, extension = os.path.splitext(file)
                 # skip files with invalid extensions
                 if extension != ".yml": 
-                    self.log_warning("ignoring file with invalid extension: "+filename)
+                    self.log_debug("ignoring file with invalid extension: "+filename)
                     continue 
                 # ensure the filename contains the version and retrieve it
                 if self.parse_filename(name) is None:
@@ -169,7 +169,6 @@ class Config(Controller):
             # otherwise read the file and publish it
             with open(new_index[topic]["file"]) as f: file = f.read()
             content = yaml.load(file, Loader=yaml.SafeLoader)
-            # TODO: how to keep order of configuration file
             self.publish_config(topic, new_index[topic]["version"], content)
         # 5) delete removed configuration files
         for topic in self.old_index:
@@ -220,7 +219,6 @@ class Config(Controller):
             return
         if content is None: return
         # create subdirectories
-        filename = os.path.basename(file)
         directories = os.path.dirname(file)
         if directories != "":
             path = self.config_dir+os.sep+directories
@@ -230,9 +228,14 @@ class Config(Controller):
                 except Exception,e: 
                     self.log_error("unable to create directory "+path+": "+exception.get(e))
                     return
-        # TODO: save backup and handle revisions
-        # save the file
+        # backup existing file if any
         file_path = self.config_dir+os.sep+file+"."+version+".yml"
+        if os.path.isfile(file_path):
+            with open(file_path) as f: backup_content = f.read()
+            f = open(file_path.replace(".yml", ".bck"), "w")
+            f.write(backup_content)
+            f.close()
+        # save the file
         f = open(file_path, "w")
         f.write(content)
         f.close()
@@ -249,7 +252,6 @@ class Config(Controller):
                 os.makedirs(self.config_dir)
             except Exception,e: 
                 self.log_error("unable to create directory "+self.config_dir+": "+exception.get(e))
-        # TODO: handle reconnection. cannot be moved into on_connect or will not work
         self.load_config()
         # receive manifest files with default config
         self.add_broadcast_listener("+/+", "MANIFEST", "#")
@@ -308,7 +310,6 @@ class Config(Controller):
                     filename, version = self.parse_filename(filename_with_version)
                     file_content = entry[filename_with_version]
                     # do not overwrite existing files since the user may have changed default values
-                    # TODO: add an option to overwrite existing files (e.g. updated examples)
                     if filename in self.old_index: continue
                     # ensure the file is in a valid YAML format
                     try:
@@ -318,7 +319,6 @@ class Config(Controller):
                         return
                     # save the new/updated default configuration file
                     self.log_debug("Received new default configuration file "+filename)
-                    # TODO: wait a bit before reloading
                     self.save_config_file(filename, version, file_content, False)
                     self.load_config()
 
