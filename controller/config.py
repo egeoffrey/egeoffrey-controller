@@ -258,21 +258,22 @@ class Config(Controller):
         # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
         self.sleep(60)
         while True:
-            # ask for the index
-            self.is_config_online = False
-            listener = self.add_configuration_listener(self.index_key, self.index_version)
-            # sleep by continuously checking if the index has been received
-            dec = 0
-            while (dec <= 20): 
-                if self.is_config_online: break
-                self.sleep(0.1)
-                dec = dec+1
-            self.remove_listener(listener)
-            # looks like the index is no more there, better reloading the config
-            if not self.is_config_online:
-                self.log_warning("configuration has disappear from the gateway, re-publishing it again")
-                self.force_reload = True
-                self.load_config()
+            if not self.load_config_running:
+                # ask for the index
+                self.is_config_online = False
+                listener = self.add_configuration_listener(self.index_key, self.index_version)
+                # sleep by continuously checking if the index has been received
+                dec = 0
+                while (dec <= 20): 
+                    if self.is_config_online: break
+                    self.sleep(0.1)
+                    dec = dec+1
+                self.remove_listener(listener)
+                # looks like the index is no more there, better reloading the config
+                if not self.is_config_online:
+                    self.log_warning("configuration has disappear from the gateway, re-publishing it again")
+                    self.force_reload = True
+                    self.load_config()
             time.sleep(60)
         
     # What to do when shutting down

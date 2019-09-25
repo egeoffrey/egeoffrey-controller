@@ -31,8 +31,6 @@ class Logger(Controller):
         self.config = {}
         # logger
         self.logger = logging.getLogger("eGeoffrey")
-        self.rotate_size_mb = 5
-        self.rotate_count = 5
         # maximum log messages per second to print
         self.max_msg_rate = 5
         self.msg_count = 0
@@ -48,30 +46,32 @@ class Logger(Controller):
         
     # What to do when running    
     def on_start(self):
-        #configure loggers
-        self.logger.setLevel(logging.INFO)
-        # configure console logging
-        console = logging.StreamHandler()
-        console.setLevel(logging.INFO)
-        console.setFormatter(logging.Formatter("%(message)s"))
-        self.logger.addHandler(console)
-        # configure file logging
-        log_dir = os.path.abspath(os.path.dirname(__file__))+"/../logs"
-        if not os.path.exists(log_dir):
-            try:
-                os.makedirs(log_dir)
-            except Exception,e: 
-                print "unable to create directory "+log_dir+": "+exception.get(e)
-        if os.path.exists(log_dir):
-            file = logging.handlers.RotatingFileHandler(log_dir+"/egeoffrey.log", maxBytes=self.rotate_size_mb*1024*1024, backupCount=self.rotate_count)
-            file.setLevel(logging.INFO)
-            file.setFormatter(logging.Formatter("%(message)s"))
-            self.logger.addHandler(file)
-        # schedule to apply configured retention policies to the logs stored into the database
-        job = {"func": self.retention_policies, "trigger":"interval", "hours": 1}
-        self.scheduler.add_job(job)
-        # start the scheduler 
-        self.scheduler.start()
+        if self.config["file_enable"]:
+            #configure loggers
+            self.logger.setLevel(logging.INFO)
+            # configure console logging
+            console = logging.StreamHandler()
+            console.setLevel(logging.INFO)
+            console.setFormatter(logging.Formatter("%(message)s"))
+            self.logger.addHandler(console)
+            # configure file logging
+            log_dir = os.path.abspath(os.path.dirname(__file__))+"/../logs"
+            if not os.path.exists(log_dir):
+                try:
+                    os.makedirs(log_dir)
+                except Exception,e: 
+                    print "unable to create directory "+log_dir+": "+exception.get(e)
+            if os.path.exists(log_dir):
+                file = logging.handlers.RotatingFileHandler(log_dir+"/egeoffrey.log", maxBytes=self.config["file_rotate_size"]*1024*1024, backupCount=self.config["file_rotate_count"])
+                file.setLevel(logging.INFO)
+                file.setFormatter(logging.Formatter("%(message)s"))
+                self.logger.addHandler(file)
+        if self.config["database_enable"]:
+            # schedule to apply configured retention policies to the logs stored into the database
+            job = {"func": self.retention_policies, "trigger":"interval", "hours": 1}
+            self.scheduler.add_job(job)
+            # start the scheduler 
+            self.scheduler.start()
 
         
     # What to do when shutting down
@@ -115,7 +115,7 @@ class Logger(Controller):
         message = Message(self)
         message.recipient = "controller/db"
         message.command = "PURGE_LOGS"
-        message.set_data(self.config["retention"])
+        message.set_data(self.config["database_retention"])
         self.send(message)
     
     # What to do when receiving a request for this module

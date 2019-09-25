@@ -94,6 +94,6 @@ modules:
       name: post_processors
       required: true
 package: egeoffrey-controller
-revision: 47
+revision: 48
 tags: controller
 version: 1.0
