@@ -93,7 +93,12 @@ modules:
       format: dict
       name: post_processors
       required: true
+    - description: if requested to save the same sensor's value of the latest in a
+        very short time, ignore it (tolerance in seconds)
+      format: int
+      name: duplicates_tolerance
+      required: false
 package: egeoffrey-controller
-revision: 48
+revision: 49
 tags: controller
 version: 1.0

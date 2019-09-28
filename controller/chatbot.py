@@ -194,7 +194,7 @@ class Chatbot(Controller):
             rule = message.get_data()
             if "disabled" in rule and rule["disabled"]: return
             # ignore rules with a condition
-            if len(rule["conditions"]) != 0: return
+            if "conditions" not in rule or len(rule["conditions"]) != 0: return
             self.log_debug("adding rule "+rule_id+" to the vocabulary")
             self.vocabulary_rules[rule["text"]] = [rule_id]
         # sensors

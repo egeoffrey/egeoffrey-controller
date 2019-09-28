@@ -311,6 +311,7 @@ class Config(Controller):
                     filename, version = self.parse_filename(filename_with_version)
                     file_content = entry[filename_with_version]
                     # do not overwrite existing files since the user may have changed default values
+                    # for updated configurations, prevent saving the new version, letting the module managing the upgrade
                     if filename in self.old_index: continue
                     # ensure the file is in a valid YAML format
                     try:

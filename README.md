@@ -45,6 +45,7 @@ To configure each module included in this package, once started, click on the *'
     - *calculate**: aggregation policies that can be associated to sensors to e.g. automatically calculate average, minimum and maximum per hour/day
     - *retain**: retention policies that can be associated to sensors to e.g. automatically purge old values from the database
     - *post_processors**: set of available post processing commands that can be associated to sensors to e.g. automatically post-process a new value once collected
+    - *duplicates_tolerance*: if requested to save the same sensor's value of the latest in a very short time, ignore it (tolerance in seconds)
 
 ## Contribute
 
@@ -87,4 +88,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.0-48 on the master branch.
+The version of this egeoffrey-controller is 1.0-49 on the master branch.

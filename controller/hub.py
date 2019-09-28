@@ -33,14 +33,14 @@ class Hub(Controller):
     def on_init(self):
         # module's configuration
         self.config = {}
-        # map sensor_id with sensor configuration
+        # map sensor_id with its configuration, latest value and timestamp of the latest value
         self.sensors = {}
         # scheduler is needed for polling sensors
         self.scheduler = Scheduler(self)
         # date/time helper
         self.date = None
         # request required configuration files
-        self.config_schema = 1
+        self.config_schema = 2
         self.sensors_config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
         self.add_configuration_listener("house", 1, True)
@@ -51,7 +51,7 @@ class Hub(Controller):
     # what to do during execution of the sensor's schedule
     def run_sensor(self, sensor_id):
         # prepare and send a message to the requested module
-        sensor = self.sensors[sensor_id]
+        sensor = self.sensors[sensor_id]["config"]
         if "service" in sensor and sensor["service"]["mode"] == "pull":
             message = Message(self)
             message.recipient = "service/"+sensor["service"]["name"]
@@ -65,7 +65,7 @@ class Hub(Controller):
     def calculate_stats(self, group_by):
         self.log_debug("Requesting database to calculate "+group_by+" statistics")
         for sensor_id in self.sensors:
-            sensor = self.sensors[sensor_id]
+            sensor = self.sensors[sensor_id]["config"]
             # if we need to calculate aggregated statistics for this sensor
             if "calculate" in sensor and sensor["calculate"] in self.config["calculate"]:
                 # ask the database module to calculate the aggregated statistics
@@ -79,7 +79,7 @@ class Hub(Controller):
     # apply configured retention policies for all the sensors
     def retention_policies(self):
         for sensor_id in self.sensors:
-            sensor = self.sensors[sensor_id]
+            sensor = self.sensors[sensor_id]["config"]
             # if we need to apply retention policies for this sensor
             if "retain" in sensor and sensor["retain"] in self.config["retain"]:
                 # ask the database module to purge the data
@@ -95,7 +95,8 @@ class Hub(Controller):
         self.log_debug("Received configuration for sensor "+sensor_id)
         # clean it up first
         self.remove_sensor(sensor_id)
-        self.sensors[sensor_id] = sensor
+        self.sensors[sensor_id] = {}
+        self.sensors[sensor_id]["config"] = sensor
                 
     # delete a sensor
     def remove_sensor(self, sensor_id):
@@ -139,7 +140,7 @@ class Hub(Controller):
         else:
             message.set("timestamp", self.date.now())
         # 2) post-process the value if requested
-        sensor = self.sensors[sensor_id]
+        sensor = self.sensors[sensor_id]["config"]
         if "post_processor" in sensor and sensor["post_processor"] in self.config["post_processors"]:
             try:
                 orig_value = message.get("value")
@@ -155,18 +156,28 @@ class Hub(Controller):
         except Exception,e: 
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
             return
-        # 4) attach retention policies to be applied straight away
+        # 4) if we are requested to save the same value of the latest in a very short time, ignore it
+        if "duplicates_tolerance" in self.config and "value" in self.sensors[sensor_id]:
+            if self.sensors[sensor_id]["value"] == sdk.python.utils.strings.truncate(str(message.get("value")), 50) and abs(message.get("timestamp") - self.sensors[sensor_id]["timestamp"]) <= self.config["duplicates_tolerance"]:
+                self.log_debug("["+sensor_id+"] ignoring duplicated value "+self.sensors[sensor_id]["value"])
+                return False
+        # 5) attach retention policies to be applied straight away
         if "retain" in sensor and sensor["retain"] in self.config["retain"]:
             message.set("retain", self.config["retain"][sensor["retain"]]["policies"])
-        # 5) ask the db to store the value
+        # 6) ask the db to store the value
         message.forward("controller/db")
         message.command = "SAVE"
         message.args = sensor_id
-        # 6) request to update hourly/daily stats
+        # 7) request to update hourly/daily stats
         if "calculate" in sensor and sensor["calculate"] in self.config["calculate"]:
             message.set("calculate", self.config["calculate"][sensor["calculate"]]["operations"])
         self.log_debug("["+sensor_id+"] requesting database to store: "+str(message.get_data()))
         self.send(message)
+        # 8) cache latest value and timestamp so to prevent saving multiple times the same value
+        if "duplicates_tolerance" in self.config and sensor["format"] not in ["calendar", "image", "tasks"]:
+            self.sensors[sensor_id]["value"] = sdk.python.utils.strings.truncate(str(message.get("value")), 50)
+            self.sensors[sensor_id]["timestamp"] = message.get("timestamp")
+        return True
 
     # What to do when receiving a request for this module    
     def on_message(self, message):
@@ -177,7 +188,7 @@ class Hub(Controller):
         # new value coming from a sensor (solicited or unsolicited), save it
         if message.command == "IN":
             # retrieve the sensor_id for which this message is directed to
-            sensor = self.sensors[sensor_id]
+            sensor = self.sensors[sensor_id]["config"]
             # ignore incoming messages for sensors registered as actuators
             if sensor["service"]["mode"] == "actuator": return
             # save the value in the db
@@ -187,11 +198,11 @@ class Hub(Controller):
             self.run_sensor(sensor_id)
         # asked to set a new value to a sensor, save it and if the sensor has a service associated, send an OUT message
         elif message.command == "SET":
-            sensor = self.sensors[sensor_id]
+            sensor = self.sensors[sensor_id]["config"]
             # save the value in the db
-            self.save_value(sensor_id, message)
+            result = self.save_value(sensor_id, message)
             # if there is a service associated, forward the message to do the actual action
-            if "service" in sensor and sensor["service"]["mode"] == "actuator":
+            if result and "service" in sensor and sensor["service"]["mode"] == "actuator":
                 message.forward("service/"+sensor["service"]["name"])
                 message.command = "OUT"
                 # merge the request with the service's configuration
@@ -203,7 +214,7 @@ class Hub(Controller):
         elif message.sender == "controller/db" and message.command == "SAVED":
             # catch only new values saved, not aggregations run
             if message.has("from_save") and message.get("from_save"):
-                sensor = self.sensors[sensor_id]
+                sensor = self.sensors[sensor_id]["config"]
                 # log new value
                 description = sensor["description"] if "description" in sensor else ""
                 unit = sensor["unit"] if "unit" in sensor else ""
@@ -235,6 +246,12 @@ class Hub(Controller):
         if message.is_null and not message.args.startswith("sensors/"): return
         # module's configuration
         if message.args == self.fullname and not message.is_null:
+            # upgrade the config schema
+            if message.config_schema == 1:
+                config = message.get_data()
+                config["duplicates_tolerance"] = 3
+                self.upgrade_config(message.args, message.config_schema, 2, config)
+                return False
             if message.config_schema != self.config_schema: 
                 return False
             if not self.is_valid_configuration(["calculate", "retain", "post_processors"], message.get_data()): return False

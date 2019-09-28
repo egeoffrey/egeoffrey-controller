@@ -41,3 +41,4 @@ retain:
     policies:
       daily: 5
       new_only: true
+duplicates_tolerance: 3
