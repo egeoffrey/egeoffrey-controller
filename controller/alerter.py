@@ -19,6 +19,7 @@
 
 import re
 import time
+import copy
 
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
@@ -56,7 +57,7 @@ class Alerter(Controller):
         self.variable_regexp = '^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|POSITION_LABEL|POSITION_TEXT|)\s*(-\d+)?(,-\d+)?\s*(\S+)$'
         # require module configuration before starting up
         self.config_schema = 1
-        self.rules_config_schema = 1
+        self.rules_config_schema = 2
         self.sensors_config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
         # subscribe for acknowledgments from the database for saved values
@@ -105,51 +106,59 @@ class Alerter(Controller):
         return evaluation
         
     # replace placeholders (%placeholder%) with their values
-    def format_placeholders(self, rule_id, repeat_for_i, text):
+    def format_placeholders(self, rule_id, macro, text):
+        # find all &placeholder%
         placeholders = re.findall("%([^%]+)%", text)         
         for placeholder in placeholders:
-            if isinstance(self.values[rule_id][repeat_for_i][placeholder], list):
-                if len(self.values[rule_id][repeat_for_i][placeholder]) == 0: value = ""
-                else: value = self.values[rule_id][repeat_for_i][placeholder][0]
+            # replace the macro with its name
+            if placeholder == "i":
+                macro_text = macro
+                if macro in self.sensors:
+                    sensor = self.sensors[macro]
+                    if "description" in sensor:
+                        macro_text = sensor["description"]
+                text = text.replace("%i%", macro_text)
             else:
-                value = self.values[rule_id][repeat_for_i][placeholder]
-            # append the unit to the value if we got this sensor's configuration
-            if rule_id in self.variables and placeholder in self.variables[rule_id]:
-                sensor_id = self.variables[rule_id][placeholder]
-                if sensor_id in self.sensors and "unit" in self.sensors[sensor_id]:
-                    value = str(value)+str(self.sensors[sensor_id]["unit"])
-            text = text.replace("%"+placeholder+"%", str(value))
+                # get the value of the placeholder
+                if isinstance(self.values[rule_id][macro][placeholder], list):
+                    if len(self.values[rule_id][macro][placeholder]) == 0: value = ""
+                    else: value = self.values[rule_id][macro][placeholder][0]
+                else:
+                    value = self.values[rule_id][macro][placeholder]
+                # append the unit to the value if we got this sensor's configuration
+                if rule_id in self.variables and macro in self.variables[rule_id] and placeholder in self.variables[rule_id][macro]:
+                    sensor_id = self.variables[rule_id][macro][placeholder]
+                    if sensor_id in self.sensors and "unit" in self.sensors[sensor_id]:
+                        value = str(value)+str(self.sensors[sensor_id]["unit"])
+                text = text.replace("%"+placeholder+"%", str(value))
         return text
 
     # retrieve the values of all the configured variables of the given rule_id. Continues in on_messages() when receiving values from db
-    def run_rule(self, rule_id):
-        rule = self.rules[rule_id]
-        # ensure this rule is not run too often to avoid loops
-        if rule_id in self.last_run and time.time() - self.last_run[rule_id] < 3: return
-        self.last_run[rule_id] = time.time()
-        self.log_debug("Running rule "+rule_id)
-        # for each sensor we need the value which will be asked to the db module. Keep track of both values and requests
-        self.requests[rule_id] = {}
-        self.values[rule_id] = {}
-        # when "for" is used, the same rule is run independently for each item 
-        repeat_for = rule["for"] if "for" in rule else ["_default_"]
-        for repeat_for_i in repeat_for:
-            self.requests[rule_id][repeat_for_i] = []
-            self.values[rule_id][repeat_for_i] = {}
-        # for every constant, store its value as is so will be ready for the evaluation
-        if "constants" in rule:
-            for repeat_for_i in repeat_for:
+    def run_rule(self, rule_id, macro=None):
+        # if macro is defined, run the rule for that macro only, otherwise run for all the macros
+        macros = [macro] if macro is not None else self.rules[rule_id].keys()
+        for macro in macros:
+            rule = self.rules[rule_id][macro]
+            # ensure this rule is not run too often to avoid loops
+            if rule_id in self.last_run and macro in self.last_run[rule_id] and time.time() - self.last_run[rule_id][macro] < 3: return
+            # keep track of the last time this run has run
+            if rule_id not in self.last_run: self.last_run[rule_id] = {}
+            self.last_run[rule_id][macro] = time.time()
+            self.log_debug("["+rule_id+"]["+macro+"] running rule")
+            # for each sensor we need the value which will be asked to the db module. Keep track of both values and requests
+            if rule_id not in self.requests: self.requests[rule_id] = {}
+            self.requests[rule_id][macro] = []
+            if rule_id not in self.values: self.values[rule_id] = {}
+            self.values[rule_id][macro] = {}
+            # for every constant, store its value as is so will be ready for the evaluation
+            if "constants" in rule:
                 for constant_id, value in rule["constants"].iteritems():
-                    self.values[rule_id][repeat_for_i][constant_id] = value
-        # for every variable, retrieve its latest value to the database
-        if "variables" in rule:
-            for i in range(len(repeat_for)):
-                repeat_for_i = repeat_for[i]
+                    self.values[rule_id][macro][constant_id] = value
+            # for every variable, retrieve its latest value to the database
+            if "variables" in rule:
                 for variable_id, variable in rule["variables"].iteritems():
-                    # a variable can contain %i% which is replaced with every item of "for"
-                    variable_i = variable.replace("%i%", repeat_for_i)
-                    # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                    match = re.match(self.variable_regexp, variable_i)
+                    # process the variable string (0: request, 1: start, 2: end, 3: sensor_id)
+                    match = re.match(self.variable_regexp, variable)
                     if match is None: continue
                     # query db for the data
                     command, start, end, sensor_id = match.groups()
@@ -164,21 +173,21 @@ class Alerter(Controller):
                     self.sessions.register(message, {
                         "rule_id": rule_id,
                         "variable_id": variable_id,
-                        "%i%": repeat_for_i,
+                        "macro": macro,
                     })
-                    self.log_debug("["+rule_id+"]["+variable_id+"] requesting db for "+message.command+" "+message.args+": "+str(message.get_data()))
+                    self.log_debug("["+rule_id+"]["+macro+"]["+variable_id+"] requesting db for "+message.command+" "+message.args+": "+str(message.get_data()))
                     self.send(message)
                     # keep track of the requests so that once all the data will be available the rule will be evaluated
-                    self.requests[rule_id][repeat_for_i].append(message.get_request_id())
+                    self.requests[rule_id][macro].append(message.get_request_id())
                 # add a placeholder at the end to ensure the rule is not evaluated before all the definitions are retrieved
-                self.requests[rule_id][repeat_for_i].append("LAST")
-        # if the rule requires no data to retrieve, just evaluate it
-        if len(self.requests[rule_id][repeat_for_i]) == 0:
-            self.evaluate_rule(rule_id, repeat_for_i)
+                self.requests[rule_id][macro].append("LAST")
+            # if the rule requires no data to retrieve, just evaluate it
+            if len(self.requests[rule_id][macro]) == 0:
+                self.evaluate_rule(rule_id, macro)
 
     # evaluate the conditions of a rule, once all the variables have been collected
-    def evaluate_rule(self, rule_id, repeat_for_i):
-        rule = self.rules[rule_id]
+    def evaluate_rule(self, rule_id, macro):
+        rule = self.rules[rule_id][macro]
         # 1) evaluate all the conditions of the rule
         or_evaluations = []
         for or_conditions in rule["conditions"]:
@@ -195,25 +204,25 @@ class Alerter(Controller):
                     # expression format is "exp1 operator exp2" (e.g. a == b)
                     exp1, operator, exp2 = expression.split(' ') 
                     # calculate the sub expression
-                    exp1_value = self.values[rule_id][repeat_for_i][exp1]
-                    exp2_value = self.values[rule_id][repeat_for_i][exp2]
+                    exp1_value = self.values[rule_id][macro][exp1]
+                    exp2_value = self.values[rule_id][macro][exp2]
                     exp_value = self.evaluate_condition(exp1_value, operator, exp2_value)
-                    self.log_debug("["+rule_id+"]["+repeat_for_i+"] resolving "+exp1+" ("+sdk.python.utils.strings.truncate(str(exp1_value), 50)+") "+operator+" "+exp2+" ("+sdk.python.utils.strings.truncate(str(exp2_value), 50)+"): "+str(exp_value)+" (alias "+placeholder+")")
+                    self.log_debug("["+rule_id+"]["+macro+"] resolving "+exp1+" ("+sdk.python.utils.strings.truncate(str(exp1_value), 50)+") "+operator+" "+exp2+" ("+sdk.python.utils.strings.truncate(str(exp2_value), 50)+"): "+str(exp_value)+" (alias "+placeholder+")")
                     # store the sub expressions result in the values
-                    self.values[rule_id][repeat_for_i][placeholder] = exp_value
+                    self.values[rule_id][macro][placeholder] = exp_value
                     and_conditions = and_conditions.replace("("+expression+")", placeholder)
                 # evaluate the main expression
                 a, operator, b = and_conditions.split(' ')
-                a_value = self.values[rule_id][repeat_for_i][a]
-                b_value = self.values[rule_id][repeat_for_i][b]
+                a_value = self.values[rule_id][macro][a]
+                b_value = self.values[rule_id][macro][b]
                 sub_evaluation = self.is_true(a_value, operator, b_value)
-                self.log_debug("["+rule_id+"]["+repeat_for_i+"] evaluating condition "+a+" ("+sdk.python.utils.strings.truncate(str(a_value), 50)+") "+operator+" "+b+" ("+sdk.python.utils.strings.truncate(str(b_value), 50)+"): "+str(sub_evaluation))
+                self.log_debug("["+rule_id+"]["+macro+"] evaluating condition "+a+" ("+sdk.python.utils.strings.truncate(str(a_value), 50)+") "+operator+" "+b+" ("+sdk.python.utils.strings.truncate(str(b_value), 50)+"): "+str(sub_evaluation))
                 and_evaluations.append(sub_evaluation)
             # evaluation is true if all the conditions are met
             and_evaluation = True
             for evaluation in and_evaluations:
                 if not evaluation: and_evaluation = False
-            self.log_debug("["+rule_id+"]["+repeat_for_i+"] AND block evaluates to "+str(and_evaluation))
+            self.log_debug("["+rule_id+"]["+macro+"] AND block evaluates to "+str(and_evaluation))
             or_evaluations.append(and_evaluation)
         # evaluation is true if at least one condition is met
         or_evaluation = False
@@ -221,15 +230,15 @@ class Alerter(Controller):
             if evaluation: or_evaluation = True
         # if there were no conditions, the rule evaluates to true
         if len(or_evaluations) == 0: or_evaluation = True
-        self.log_debug("["+rule_id+"]["+repeat_for_i+"] rule evaluates to "+str(or_evaluation))
+        self.log_debug("["+rule_id+"]["+macro+"] rule evaluates to "+str(or_evaluation))
         # evaluate to false, just return
         if not or_evaluation: return
         # 2) execute the requested actions
         if "actions" in rule:
             for action in rule["actions"]:
-                action = re.sub(' +', ' ', action).replace("%i%", repeat_for_i)
+                action = re.sub(' +', ' ', action)
                 # replace constants and variables placeholders in the action with their values
-                action = self.format_placeholders(rule_id, repeat_for_i, action)
+                action = self.format_placeholders(rule_id, macro, action)
                 # execute the action
                 action_split = action.split(" ")
                 command = action_split[0]
@@ -251,15 +260,8 @@ class Alerter(Controller):
                     message.args = rule_to_run
                     self.send(message)
         # 3) format the alert text
-        replace_text = repeat_for_i
-        # if this is a sensor_id, replace with the description if available
-        if repeat_for_i in self.sensors:
-            sensor = self.sensors[repeat_for_i]
-            if "description" in sensor:
-                replace_text = sensor["description"]
-        alert_text = rule["text"].replace("%i%", replace_text)
         # replace constants and variables placeholders in the alert text with their values
-        alert_text = self.format_placeholders(rule_id, repeat_for_i, alert_text)
+        alert_text = self.format_placeholders(rule_id, macro, rule["text"])
         # 4) notify about the alert and save it
         if rule["severity"] != "none" and rule_id not in self.on_demand:
             self.log_info("["+rule_id+"]["+rule["severity"]+"] "+alert_text)
@@ -287,9 +289,9 @@ class Alerter(Controller):
             self.send(message)
             del self.on_demand[rule_id]
         # 6) clean up, rule completed execution, remove the rule_id from the request queue and all the collected values
-        del self.requests[rule_id][repeat_for_i]
+        del self.requests[rule_id][macro]
         if len(self.requests[rule_id]) == 0: del self.requests[rule_id]
-        del self.values[rule_id][repeat_for_i]
+        del self.values[rule_id][macro]
         if len(self.values[rule_id]) == 0: del self.values[rule_id]
         
     # add a rule. Continues in run_rule() when rule is executed
@@ -297,31 +299,23 @@ class Alerter(Controller):
         self.log_debug("Received configuration for rule "+rule_id)
         # clean it up first
         self.remove_rule(rule_id)
-        self.rules[rule_id] = rule
-        # rule will be run upon a schedule
-        if rule["type"] == "recurrent":
-            # schedule the rule execution
-            self.log_debug("Scheduling "+rule_id+" with the following settings: "+str(rule["schedule"]))
-            # "schedule" contains apscheduler settings for this sensor
-            job = rule["schedule"]
-            # add function to call and args
-            job["func"] = self.run_rule  # first thing to do when executing is populating the variables with values
-            job["args"] = [rule_id]
-            # schedule the job for execution and keep track of the job id
-            self.jobs[rule_id] = self.scheduler.add_job(job).id
-        # for realtime rules, rule will be run every time one of the variables will change value
-        if "variables" in rule:
-            # when "for" is used, the same rule is run independently for each item 
-            repeat_for = rule["for"] if "for" in rule else ["_default_"]
-            for repeat_for_i in repeat_for:
-                for variable_id, variable in rule["variables"].iteritems():
-                    # a variable can contain %i% which is replaced with every item of "for"
-                    variable_i = variable.replace("%i%", repeat_for_i)
-                    # match the variable string (0: request, 1: start, 2: end, 3: sensor_id)
-                    match = re.match(self.variable_regexp, variable_i)
+        # if macros are defined, repeat the same independently for each macro
+        macros = rule["macros"] if "macros" in rule else ["_default_"]
+        for macro in macros:
+            # create a copy of the rule and keep track of it
+            rule_i = copy.deepcopy(rule)
+            if rule_id not in self.rules: self.rules[rule_id] = {}
+            self.rules[rule_id][macro] = rule_i
+            # for each variable
+            if "variables" in rule_i:
+                for variable_id in rule_i["variables"]:
+                    # replace the macro placeholder if any
+                    rule_i["variables"][variable_id] = rule_i["variables"][variable_id].replace("%i%", macro)
+                    # process the variable content (0: request, 1: start, 2: end, 3: sensor_id)
+                    match = re.match(self.variable_regexp, rule_i["variables"][variable_id])
                     if match is None: return
                     command, start, end, sensor_id = match.groups()
-                    # request sensor's configuration for each variable
+                    # request sensor's configuration for each variable, will be used when formatting the notification text
                     if command == "":
                         # remove any sub query (e.g. day/avg)
                         sensor_name = re.sub(r'\/(day|hour)\/[^\/]+$', '', sensor_id)
@@ -329,33 +323,64 @@ class Alerter(Controller):
                             # request the sensor's configuration
                             self.add_configuration_listener("sensors/"+sensor_name, self.sensors_config_schema)
                             # keep track of the associated between this variable_id and the sensor
-                            if rule_id not in self.variables:
-                                self.variables[rule_id] = {}
-                            self.variables[rule_id][variable_id] = sensor_name
-                    # add the sensor_id to the triggers so the rule will be run upon any change
-                    if rule["type"] == "realtime":
-                        if sensor_id not in self.triggers:
-                            self.triggers[sensor_id] = []
-                        self.triggers[sensor_id].append(rule_id)
-        # request sensor's configuration for each for i
-        if "for" in rule:
-            for sensor_id in rule["for"]:
+                            if rule_id not in self.variables: self.variables[rule_id] = {}
+                            if macro not in self.variables[rule_id]: self.variables[rule_id][macro] = {}
+                            self.variables[rule_id][macro][variable_id] = sensor_name
+            # for each action
+            if "actions" in rule_i:
+                # replace the macro placeholder if any
+                for i in range(0, len(rule_i["actions"]))   :
+                    rule_i["actions"][i] = rule_i["actions"][i].replace("%i%", macro)
+            # for each trigger
+            if "triggers" in rule_i:
+                # replace the macro placeholder if any
+                for i in range(0, len(rule_i["triggers"])):
+                    rule_i["triggers"][i] = rule_i["triggers"][i].replace("%i%", macro)
+            # if the rule is recurrent, we need to schedule its execution
+            if rule_i["type"] == "recurrent":
+                # schedule the rule execution
+                self.log_debug("["+rule_id+"]["+macro+"] scheduling with the following settings: "+str(rule_i["schedule"]))
+                # "schedule" contains apscheduler settings for this rule
+                job = rule_i["schedule"]
+                # add function to call and args
+                job["func"] = self.run_rule
+                job["args"] = [rule_id, macro]
+                # schedule the job for execution and keep track of the job id
+                if rule_id not in self.jobs: self.jobs[rule_id] = {}
+                self.jobs[rule_id][macro] = self.scheduler.add_job(job).id
+            # if the rule is realtime, add each sensor_id to the triggers so the rule will be run upon any change
+            if rule_i["type"] == "realtime":
+                if "triggers" in rule_i:
+                    for sensor_id in rule_i["triggers"]:
+                        if sensor_id not in self.triggers: self.triggers[sensor_id] = []
+                        self.triggers[sensor_id].append(rule_id+"!"+macro)
+                else:
+                    self.log_warning("rule "+rule_id+" is of type realtime but no triggers are defined")
+        # retrieve the sensor for each macro
+        if "macros" in rule:
+            for sensor_id in rule["macros"]:
                 if sensor_id not in self.sensors:
+                    # request the sensor's configuration
                     self.add_configuration_listener("sensors/"+sensor_id, self.sensors_config_schema)
-    
+
     # remove a rule
     def remove_rule(self, rule_id):
         if rule_id in self.rules:
             self.log_debug("Removing rule "+rule_id)
             # delete the rule from every data structure
             del self.rules[rule_id]
-            if rule_id in self.jobs: self.scheduler.remove_job(self.jobs[rule_id])
+            if rule_id in self.jobs: 
+                for macro in self.jobs[rule_id]:
+                    self.scheduler.remove_job(self.jobs[rule_id][macro])
             if rule_id in self.requests: del self.requests[rule_id]
             if rule_id in self.values: del self.values[rule_id]
-            for sensor_id in self.triggers:
-                if rule_id in self.triggers[sensor_id]:
-                    self.triggers[sensor_id].remove(rule_id)
-                    if len(self.triggers[sensor_id]) == 0: del self.triggers[sensor_id]
+            triggers = copy.deepcopy(self.triggers)
+            for sensor_id in triggers:
+                rules = list(self.triggers[sensor_id])
+                for rule in rules:
+                    if rule.startswith(rule_id+"!"):
+                        self.triggers[sensor_id].remove(rule)
+                if len(self.triggers[sensor_id]) == 0: del self.triggers[sensor_id]
         
     # apply configured retention policies for saved alerts
     def retention_policies(self):
@@ -387,13 +412,13 @@ class Alerter(Controller):
             session = self.sessions.restore(message)
             if session is None: return
             # cache the value of the variable
-            self.log_debug("["+session["rule_id"]+"]["+session["%i%"]+"] received from db "+session["variable_id"]+": "+str(message.get("data")))
-            self.values[session["rule_id"]][session["%i%"]][session["variable_id"]] = message.get("data")
+            self.log_debug("["+session["rule_id"]+"]["+session["macro"]+"] received from db "+session["variable_id"]+": "+str(message.get("data")))
+            self.values[session["rule_id"]][session["macro"]][session["variable_id"]] = message.get("data")
             # remove the request_id from the queue of the rule
-            self.requests[session["rule_id"]][session["%i%"]].remove(message.get_request_id())
+            self.requests[session["rule_id"]][session["macro"]].remove(message.get_request_id())
             # if there is only the LAST element in the queue, we have all the values, ready to evaluate the rule
-            if len(self.requests[session["rule_id"]][session["%i%"]]) == 1 and self.requests[session["rule_id"]][session["%i%"]][0] == "LAST":
-                self.evaluate_rule(session["rule_id"], session["%i%"])
+            if len(self.requests[session["rule_id"]][session["macro"]]) == 1 and self.requests[session["rule_id"]][session["macro"]][0] == "LAST":
+                self.evaluate_rule(session["rule_id"], session["macro"])
         # run a given rule
         elif message.command == "RUN":
             rule_id = message.args
@@ -404,11 +429,12 @@ class Alerter(Controller):
             sensor_id = message.args
             if message.has("group_by"): sensor_id = sensor_id+"/"+message.get("group_by")
             # check if a rule has this sensor_id among its variables, if so, run it
-            for sensor in self.triggers:
+            for sensor_i in self.triggers:
                 # sensor can contain also e.g. day/avg, check if starts with sensor_id
-                if sensor.startswith(sensor_id):
-                    for rule_id in self.triggers[sensor]:
-                        self.run_rule(rule_id)
+                if sensor_i.startswith(sensor_id):
+                    for rule in self.triggers[sensor_i]:
+                        rule_id, macro = rule.split("!")
+                        self.run_rule(rule_id, macro)
         
     # What to do when receiving a rule
     def on_configuration(self, message):
@@ -434,6 +460,14 @@ class Alerter(Controller):
         # add/remove rule
         elif message.args.startswith("rules/"):
             if not self.configured: 
+                return
+            # upgrade the rule schema
+            if message.config_schema == 1 and not message.is_null:
+                rule = message.get_data()
+                if "for" in rule:
+                    rule["macros"] = rule["for"]
+                    del rule["for"]
+                self.upgrade_config(message.args, message.config_schema, 2, rule)
                 return
             if message.config_schema != self.rules_config_schema: 
                 return

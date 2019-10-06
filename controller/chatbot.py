@@ -45,7 +45,7 @@ class Chatbot(Controller):
     # What to do when running
     def on_start(self):
         # ask for all rules' and sensors' configuration
-        self.add_configuration_listener("rules/#", 1)
+        self.add_configuration_listener("rules/#", 2)
         self.add_configuration_listener("sensors/#", 1)
         
     # What to do when shutting down

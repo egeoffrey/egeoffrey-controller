@@ -17,8 +17,10 @@ import time
 import hashlib
 import yaml
 import re
+import datetime
 
 from sdk.python.module.controller import Controller
+from sdk.python.module.helpers.scheduler import Scheduler
 from sdk.python.module.helpers.message import Message
 
 import sdk.python.constants as constants
@@ -37,11 +39,13 @@ class Config(Controller):
         self.index_key = "__index"
         self.index_version = 1
         self.supported_manifest_schema = 2
+        # scheduler is used for scheduling config reload
+        self.scheduler = Scheduler(self)
         # status flags
         self.load_config_running = False
-        self.reload_config = False
         self.clear_config_running = False
         self.is_config_online = False
+        self.reload_scheduled = False
     
     # return a hash
     def get_hash(self, content):
@@ -127,12 +131,20 @@ class Config(Controller):
         message.retain = True
         self.send(message)
         
+    def reload_config(self):
+        # schedule to reload the configuration in a few seconds (so to allow other consecutive changes to happen)
+        if self.reload_scheduled: return
+        job = {}
+        job["trigger"] = "date"
+        job["run_date"] = datetime.datetime.now() + datetime.timedelta(seconds=10)
+        job["func"] = self.load_config
+        self.scheduler.add_job(job)
+        self.reload_scheduled = True
+        
     # load and publish the current configuration
     def load_config(self):
-        # avoid running this function multiple times in parallel (e.g. while starting and receiving updates), queue a reload
-        if self.load_config_running:
-            self.reload_config = True
-            return
+        # avoid running this function multiple times in parallel (e.g. while starting and receiving updates)
+        if self.load_config_running: return
         self.load_config_running = True
         # 1) build an index of the current configuration
         new_index = self.build_index()
@@ -181,10 +193,7 @@ class Config(Controller):
         self.old_index = new_index
         self.log_info("Configuration successfully published")
         self.load_config_running = False
-        # if a reload was queued, reload the config
-        if self.reload_config: 
-            self.reload_config = False
-            self.load_config()
+        self.reload_scheduled = False
     
     # delete a configuration file
     def delete_config_file(self, filename, version):
@@ -202,7 +211,7 @@ class Config(Controller):
         self.clear_config(filename, version)
         self.log_info("Successfully deleted file "+filename+" (v"+str(version)+")")
         # reload the configuration
-        self.load_config()
+        self.reload_config()
     
     # save a new/updated configuration file
     def save_config_file(self, file, version, data, reload_after_save=True):
@@ -242,7 +251,7 @@ class Config(Controller):
         self.log_info("Saved configuration file "+file+" (v"+str(version)+")")
         # restart the module or just reload the configuration
         if reload_after_save: 
-            self.load_config()
+            self.reload_config()
     
     # What to do when running
     def on_start(self):
@@ -322,7 +331,7 @@ class Config(Controller):
                     # save the new/updated default configuration file
                     self.log_debug("Received new default configuration file "+filename)
                     self.save_config_file(filename, version, file_content, False)
-                    self.load_config()
+                    self.reload_config()
 
     # What to do when receiving a new/updated configuration for this module    
     def on_configuration(self, message):

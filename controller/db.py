@@ -332,7 +332,7 @@ class Db(Controller):
                         if message.get("timestamp") <= last_timestamp:
                             self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") old event, ignoring "+key+": "+str(message.get("value")))
                             return
-            # 3) heck if there is already something stored with the same timestamp
+            # 3) check if there is already something stored with the same timestamp
             old = self.rangebyscore(key, message.get("timestamp"), message.get("timestamp"))
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
