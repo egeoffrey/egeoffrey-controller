@@ -136,7 +136,7 @@ class Config(Controller):
         if self.reload_scheduled: return
         job = {}
         job["trigger"] = "date"
-        job["run_date"] = datetime.datetime.now() + datetime.timedelta(seconds=10)
+        job["run_date"] = datetime.datetime.now() + datetime.timedelta(seconds=5)
         job["func"] = self.load_config
         self.scheduler.add_job(job)
         self.reload_scheduled = True
