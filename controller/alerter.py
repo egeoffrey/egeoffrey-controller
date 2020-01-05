@@ -101,6 +101,8 @@ class Alerter(Controller):
             elif operator == "<":
                 if not sdk.python.utils.numbers.is_number(value) or not sdk.python.utils.numbers.is_number(a): return False
                 if float(value) <= float(a): evaluation = False
+            elif operator == "in":
+                evaluation = str(a) in str(value)
             else: evaluation = False
         # return the evaluation
         return evaluation
