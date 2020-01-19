@@ -99,6 +99,6 @@ modules:
       name: duplicates_tolerance
       required: false
 package: egeoffrey-controller
-revision: 56
+revision: 57
 tags: controller
 version: 1.0
