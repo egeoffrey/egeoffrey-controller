@@ -168,7 +168,7 @@ class Config(Controller):
             # subscribe for receiving all the configurations
             listener = self.add_configuration_listener("#")
             # clear configuration happening in on_configuration() while sleeping
-            self.sleep(5)
+            self.sleep(30)
             self.remove_listener(listener)
             self.clear_config_running = False
             self.old_index = {}
