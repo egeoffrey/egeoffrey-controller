@@ -30,9 +30,12 @@ To configure each module included in this package, once started, click on the *'
     - *file_rotate_count**: number of files to keep when rotating the logs (e.g. 5)
 - **controller/db**: connects to the database and runs queries on behalf of other modules
   - Module configuration:
+    - *type**: the underlying database to use
     - *hostname**: the IP/hostname the Redis database is listening to (e.g. egeoffrey-database)
     - *port**: the port the Redis database is listening to (e.g. 6379)
     - *database**: the database number to use for storing the information (e.g. 1)
+    - *username*: the username for connecting to the database (e.g. root)
+    - *password*: the password for connecting to the database (e.g. password)
 - **controller/config**: stores configuration files on behalf of all the modules and makes them available
 - **controller/alerter**: keep running the configured rules which would trigger notifications
   - Module configuration:
@@ -88,4 +91,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.1-2 on the development branch.
+The version of this egeoffrey-controller is 1.1-3 on the development branch.

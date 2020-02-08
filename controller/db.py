@@ -66,7 +66,7 @@ class Db(Controller):
         self.username = os.getenv("EGEOFFREY_DATABASE_USERNAME", None)
         self.password = os.getenv("EGEOFFREY_DATABASE_PASSWORD", None)
         # request required configuration files
-        self.config_schema = 1
+        self.config_schema = 2
         self.add_configuration_listener(self.fullname, "+", True)
         self.add_configuration_listener("house", 1, True)
 
@@ -93,7 +93,7 @@ class Db(Controller):
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
                 return
         # retrieve from the database the data based on the given timeframe
-        data = self.db.rangebyscore(key_to_read, start, end, withscores=True)
+        data = self.db.get_by_timeframe(key_to_read, start, end, withscores=True)
         # split between values and timestamps
         values = []
         timestamps = []
@@ -106,37 +106,37 @@ class Db(Controller):
         if "avg" in calculations:
             # calculate avg
             avg = sdk.python.utils.numbers.avg(values)
-            self.db.deletebyscore(key_to_write+"/avg", start, end)
-            self.db.set(key_to_write+"/avg", avg, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/avg", start, end)
+            self.db.set_series(key_to_write+"/avg", avg, timestamp)
         if "min_max" in calculations:
             # calculate min
             min = sdk.python.utils.numbers.min(values)
-            self.db.deletebyscore(key_to_write+"/min", start, end)
-            self.db.set(key_to_write+"/min", min, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/min", start, end)
+            self.db.set_series(key_to_write+"/min", min, timestamp)
             # calculate max
             max = sdk.python.utils.numbers.max(values)
-            self.db.deletebyscore(key_to_write+"/max", start, end)
-            self.db.set(key_to_write+"/max", max, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/max", start, end)
+            self.db.set_series(key_to_write+"/max", max, timestamp)
         if "rate" in calculations:
             # calculate the rate of change
             rate = sdk.python.utils.numbers.velocity(timestamps, values)
-            self.db.deletebyscore(key_to_write+"/rate", start, end)
-            self.db.set(key_to_write+"/rate", rate, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/rate", start, end)
+            self.db.set_series(key_to_write+"/rate", rate, timestamp)
         if "sum" in calculations:
                 # calculate the sum
                 sum = sdk.python.utils.numbers.sum(values)
-                self.db.deletebyscore(key_to_write+"/sum", start, end)
-                self.db.set(key_to_write+"/sum", sum, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/sum", start, end)
+                self.db.set_series(key_to_write+"/sum", sum, timestamp)
         if "count" in calculations:
                 # count the values
                 count = sdk.python.utils.numbers.count(values)
-                self.db.deletebyscore(key_to_write+"/count", start, end)
-                self.db.set(key_to_write+"/count", count, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/count", start, end)
+                self.db.set_series(key_to_write+"/count", count, timestamp)
         if "count_unique" in calculations:
                 # count the unique values
                 count_unique = sdk.python.utils.numbers.count_unique(values)
-                self.db.deletebyscore(key_to_write+"/count_unique", start, end)
-                self.db.set(key_to_write+"/count_unique", count_unique, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/count_unique", start, end)
+                self.db.set_series(key_to_write+"/count_unique", count_unique, timestamp)
         # broadcast value updated message
         message = Message(self)
         message.recipient = "*/*"
@@ -177,11 +177,11 @@ class Db(Controller):
                 retain = message.get("retain")
                 # if we have to keep up to "count" values, delete old values from the db
                 if "count" in retain:
-                    self.db.deletebyrank(key, 0, -retain["count"])
+                    self.db.delete_by_position(key, 0, -retain["count"])
                 # if only measures with a newer timestamp than the latest can be added, apply the policy
                 if "new_only" in retain and retain["new_only"]:
                     # retrieve the latest measure's timestamp
-                    last = self.db.range(key, -1, -1)
+                    last = self.db.get_by_position(key, -1, -1)
                     if len(last) > 0:
                         last_timestamp = last[0][0]
                         # if the measure's timestamp is older or the same, skip it
@@ -189,7 +189,7 @@ class Db(Controller):
                             self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") old event, ignoring "+key+": "+str(message.get("value")))
                             return
             # 3) check if there is already something stored with the same timestamp
-            old = self.db.rangebyscore(key, message.get("timestamp"), message.get("timestamp"))
+            old = self.db.get_by_timeframe(key, message.get("timestamp"), message.get("timestamp"))
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
                     # if the value is also the same, skip it
@@ -197,9 +197,9 @@ class Db(Controller):
                     return
                 else: 
                     # same timestamp but different value, remove the old value so to store the new one
-                    self.db.deletebyscore(key, message.get("timestamp"), message.get("timestamp"))
+                    self.db.delete_by_timeframe(key, message.get("timestamp"), message.get("timestamp"))
             # 4) save the new value
-            self.db.set(key, message.get("value"), message.get("timestamp"))
+            self.db.set_series(key, message.get("value"), message.get("timestamp"))
             # 5) broadcast acknowledge value updated
             ack_message = Message(self)
             ack_message.recipient = "*/*"
@@ -220,13 +220,13 @@ class Db(Controller):
         # save alert
         elif message.command == "SAVE_ALERT":
             key = self.alerts_key+"/"+item_id
-            self.db.set(key, message.get_data(), self.date.now())
+            self.db.set_series(key, message.get_data(), self.date.now())
             self.log_debug("["+item_id+"] saving alert '"+message.get_data()+"'")
             
         # save log
         elif message.command == "SAVE_LOG":
             key = self.logs_key+"/"+item_id
-            self.db.set(key, message.get_data(), self.date.now(), False)
+            self.db.set_series(key, message.get_data(), self.date.now(), False)
         
         # calculate hourly statistics for the requested sensor
         elif message.command == "CALC_HOUR_STATS":
@@ -258,7 +258,7 @@ class Db(Controller):
                     key = key+subkey
                     if self.db.exists(key):
                         # if the key exists, delete old data
-                        deleted = self.db.deletebyscore(key, "-inf", self.date.now() - retention*86400)
+                        deleted = self.db.delete_by_timeframe(key, "-inf", self.date.now() - retention*86400)
                         self.log_debug("["+sensor_id+"] deleting from "+key+" "+str(deleted)+" old items")
                         total = total + deleted
             if total > 0: self.log_info("["+sensor_id+"] deleted "+str(total)+" old values")
@@ -270,7 +270,7 @@ class Db(Controller):
             for severity in ["info", "warning", "alert", "value"]:
                 key = self.alerts_key+"/"+severity
                 if self.db.exists(key):
-                    deleted = self.db.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                    deleted = self.db.delete_by_timeframe(key,"-inf",self.date.now()-days*86400)
                     self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
                     total = total + deleted
             if total > 0: self.log_info("deleted "+str(total)+" old alerts")
@@ -282,7 +282,7 @@ class Db(Controller):
             for severity in ["debug", "info", "warning", "error"]:
                 key = self.logs_key+"/"+severity
                 if self.db.exists(key):
-                    deleted = self.db.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                    deleted = self.db.delete_by_timeframe(key,"-inf",self.date.now()-days*86400)
                     self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
                     total = total + deleted
             if total > 0: self.log_info("deleted "+str(total)+" old logs")
@@ -470,10 +470,16 @@ class Db(Controller):
             self.house = message.get_data()
         # module's configuration
         elif message.args == self.fullname:     
+            # upgrade the schema
+            if message.config_schema == 1 and not message.is_null:
+                config = message.get_data()
+                config["type"] = "redis"
+                self.upgrade_config(message.args, message.config_schema, 2, config)
+                return
             if message.config_schema != self.config_schema: 
                 return False
             # ensure the configuration file contains all required settings
-            if not self.is_valid_configuration(["hostname", "port", "database"], message.get_data()): return False
+            if not self.is_valid_configuration(["type", "hostname", "port", "database"], message.get_data()): return False
             # if this is an updated configuration file, disconnect and reconnect
             if self.config: 
                 self.db.disconnect()

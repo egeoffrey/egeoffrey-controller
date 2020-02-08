@@ -19,10 +19,13 @@ class Db_redis():
         hostname = self.module.hostname if self.module.hostname is not None else self.module.config["hostname"]
         port = self.module.port if self.module.port is not None else self.module.config["port"]
         database = self.module.database if self.module.database is not None else self.module.config["database"]
+        password = None
+        if "password" in self.module.config: password = self.module.config["password"]
+        if self.module.password is not None: password = self.module.password
         while not self.connected:
             try: 
                 self.module.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
-                self.db = redis.StrictRedis(host=hostname, port=port, db=database)
+                self.db = redis.StrictRedis(host=hostname, port=port, db=int(database), password=password)
                 if self.db.ping():
                     self.module.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db.info().get('redis_version'))
                     self.connected = True
@@ -40,8 +43,8 @@ class Db_redis():
         if self.query_debug: self.module.log_debug("keys "+key)
         return self.db.keys(key)
 
-    # save a value to the db
-    def set(self, key, value, timestamp, log=True):
+    # save a timeseries value to the db
+    def set_series(self, key, value, timestamp, log=True):
         if timestamp is None: 
             if log: self.module.log_warning("no timestamp provided for key "+key)
             return 
@@ -51,17 +54,17 @@ class Db_redis():
         return self.db.zadd(key, timestamp, value)
 
     # set a single value into the db
-    def set_simple(self, key,value):
+    def set_value(self, key, value):
         if self.query_debug: self.module.log_debug("set "+str(key))
         self.db.set(key, str(value))
 
     # get a single value from the db
-    def get(self, key):
+    def get_value(self, key):
         if self.query_debug: self.module.log_debug("get "+key)
         return self.db.get(key)
 
     # get a range of values from the db based on the timestamp
-    def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
+    def get_by_timeframe(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if start is None: start = self.module.date.now()-24*3600
         if end is None: end = self.module.date.now()
         if self.query_debug: self.module.log_debug("zrangebyscore "+key+" "+str(start)+" "+str(end))
@@ -70,7 +73,7 @@ class Db_redis():
         return data
         
     # get a range of values from the db
-    def range(self, key,start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
+    def get_by_position(self, key,start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if self.query_debug: self.module.log_debug("zrange "+key+" "+str(start)+" "+str(end))
         data = self.normalize_dataset(self.db.zrange(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
         if max_items is not None and len(data) > max_items: data = data[-max_items:]
@@ -87,12 +90,12 @@ class Db_redis():
         return self.db.rename(key, new_key)
 
     # delete all elements between a given score
-    def deletebyscore(self, key,start,end):
+    def delete_by_timeframe(self, key,start,end):
         if self.query_debug: self.module.log_debug("zremrangebyscore "+key+" "+str(start)+" "+str(end))
         return self.db.zremrangebyscore(key, start, end)
 
     # delete all elements between a given rank
-    def deletebyrank(self, key,start,end):
+    def delete_by_position(self, key,start,end):
         if self.query_debug: self.module.log_debug("zremrangebyrank "+key+" "+str(start)+" "+str(end))
         return self.db.zremrangebyrank(key, start, end)
 
@@ -123,11 +126,11 @@ class Db_redis():
     # initialize an empty database
     def init_database(self):
         version = None
-        if self.exists(self.module.version_key): version = self.get(self.module.version_key)
+        if self.exists(self.module.version_key): version = self.get_value(self.module.version_key)
         # no version found, assuming first installation
         if version is None:
             self.module.log_info("Setting database schema to v"+str(self.db_schema_version))
-            self.set_simple(self.module.version_key, self.db_schema_version)
+            self.set_value(self.module.version_key, self.db_schema_version)
         else:
             version = int(version)
             # already at the latest version

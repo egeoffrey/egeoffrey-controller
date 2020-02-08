@@ -48,8 +48,8 @@ class Db_mongo():
         if self.query_debug: self.module.log_debug("list_collection_names() "+filter)
         return self.db.list_collection_names(filter={"name": {"$regex": filter}})
 
-    # save a value to the db
-    def set(self, key, value, timestamp, log=True):
+    # save a timeseries value to the db
+    def set_series(self, key, value, timestamp, log=True):
         if timestamp is None: 
             if log: self.module.log_warning("no timestamp provided for key "+key)
             return 
@@ -72,7 +72,7 @@ class Db_mongo():
         self.db[key].insert_one(document)
 
     # set a single value into the db
-    def set_simple(self, key, value):
+    def set_value(self, key, value):
         # delete the collection first
         self.db[key].drop()
         # insert a new document
@@ -83,14 +83,14 @@ class Db_mongo():
         self.db[key].insert_one(document)
 
     # get a single value from the db
-    def get(self, key):
+    def get_value(self, key):
         if self.query_debug: self.module.log_debug("find_one() "+key)
         result = self.db[key].find_one()
         if result != "": return result["value"]
         else: return ""
 
     # get a range of values from the db based on the timestamp
-    def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
+    def get_by_timeframe(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if start is None: start = self.module.date.now()-24*3600
         if end is None: end = self.module.date.now()
         if start == "-inf": start = 0
@@ -110,7 +110,7 @@ class Db_mongo():
         return data
         
     # get a range of values from the db
-    def range(self, key, start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
+    def get_by_position(self, key, start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
         if start > -1 or end > -1: 
             self.module.log_warning("start and end must be negative ("+str(start)+","+str(end)+")")
             return
@@ -133,7 +133,7 @@ class Db_mongo():
         return self.db[key].rename(new_key)
 
     # delete all elements between a given score
-    def deletebyscore(self, key, start, end):
+    def delete_by_timeframe(self, key, start, end):
         if start == "-inf": start = 0
         if start == "+inf": start = sys.maxint
         if end == "-inf": end = 0
@@ -149,7 +149,7 @@ class Db_mongo():
         return result.deleted_count
 
     # delete all elements between a given rank
-    def deletebyrank(self, key, start, end):
+    def delete_by_position(self, key, start, end):
         if self.query_debug: self.module.log_debug("find() "+key+" "+str(start)+" "+str(end))
         # get all data from the collection sorting by timestamp and filtering based on the provided start and end
         result = list(self.db[key].find({}, {'_id': 1}).sort("timestamp", pymongo.DESCENDING).skip(abs(end-1)).limit(abs(start)-abs(end)+1))
@@ -194,11 +194,11 @@ class Db_mongo():
     # initialize an empty database
     def init_database(self):
         version = None
-        if self.exists(self.module.version_key): version = self.get(self.module.version_key)
+        if self.exists(self.module.version_key): version = self.get_value(self.module.version_key)
         # no version found, assuming first installation
         if version is None:
             self.module.log_info("Setting database schema to v"+str(self.db_schema_version))
-            self.set_simple(self.module.version_key, self.db_schema_version)
+            self.set_value(self.module.version_key, self.db_schema_version)
         else:
             version = int(version)
             # already at the latest version
@@ -233,4 +233,3 @@ class Db_mongo():
             if (withscores): output.append([timestamp, value])
             else: output.append(value)
         return output
-

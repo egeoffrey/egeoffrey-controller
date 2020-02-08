@@ -42,6 +42,10 @@ modules:
 - controller/db:
     description: Connects to the database and runs queries on behalf of other modules
     module_configuration:
+    - description: The underlying database to use
+      format: redis|mongodb
+      name: type
+      required: true
     - description: The IP/hostname the Redis database is listening to
       format: string
       name: hostname
@@ -53,10 +57,18 @@ modules:
       placeholder: 6379
       required: true
     - description: The database number to use for storing the information
-      format: int
+      format: string
       name: database
       placeholder: 1
       required: true
+    - description: The username for connecting to the database
+      format: string
+      name: username
+      placeholder: root
+    - description: The password for connecting to the database
+      format: string
+      name: password
+      placeholder: password
 - controller/config:
     description: Stores configuration files on behalf of all the modules and makes
       them available
@@ -99,6 +111,6 @@ modules:
       name: duplicates_tolerance
       required: false
 package: egeoffrey-controller
-revision: 2
+revision: 3
 tags: controller
 version: 1.1
