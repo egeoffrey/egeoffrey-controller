@@ -2,6 +2,7 @@
 
 import pymongo
 import sys
+import re
 
 import sdk.python.utils.exceptions as exception
 import sdk.python.utils.numbers
@@ -14,8 +15,9 @@ class Db_mongo():
         self.client = None
         self.connected = False
         self.db_schema_version = 1
-        self.query_debug = True
+        self.query_debug = False
         self.module = module
+        self.db_version = None
         self.collections = []
         
      # connect to the database
@@ -30,8 +32,8 @@ class Db_mongo():
                 self.module.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
                 self.client = pymongo.MongoClient("mongodb://"+username+":"+password+"@"+hostname+":"+str(port)+"/")
                 self.db = self.client[database]
-                server_info = self.client.server_info()
-                self.module.log_info("Connected to database "+str(database)+" at "+hostname+":"+str(port)+", mongodb version "+str(server_info["version"]))
+                self.db_version = str(self.client.server_info()["version"])
+                self.module.log_info("Connected to database "+str(database)+" at "+hostname+":"+str(port)+", mongodb version "+self.db_version)
                 self.connected = True
             except Exception,e:
                 self.module.log_error("Unable to connect to "+hostname+":"+str(port)+" - "+exception.get(e))
@@ -68,7 +70,7 @@ class Db_mongo():
             "timestamp": timestamp,
             "value": str(value),
         }
-        if self.query_debug and log: self.module.log_debug(key+" insert_one() "+str(document))
+        if self.query_debug: self.module.log_debug(key+" insert_one() "+str(document))
         self.db[key].insert_one(document)
 
     # set a single value into the db
@@ -79,7 +81,7 @@ class Db_mongo():
         document = {
             "value": str(value),
         }
-        if self.query_debug and log: self.module.log_debug(key+" insert_one() "+str(document))
+        if self.query_debug: self.module.log_debug(key+" insert_one() "+str(document))
         self.db[key].insert_one(document)
 
     # get a single value from the db
@@ -111,12 +113,30 @@ class Db_mongo():
         
     # get a range of values from the db
     def get_by_position(self, key, start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
-        if start > -1 or end > -1: 
-            self.module.log_warning("start and end must be negative ("+str(start)+","+str(end)+")")
-            return
-        if self.query_debug: self.module.log_debug("find() "+key+" "+str(start)+" "+str(end))
-        # get all data from the collection sorting by timestamp and filtering based on the provided start and end positions
-        result = list(self.db[key].find().sort("timestamp", pymongo.DESCENDING).skip(abs(end+1)).limit(abs(start)-abs(end)+1))
+        # if requested from the end, sort by timestamp in desending order and use skip and limit to get the values
+        if start < 0 and end < 0: 
+            # start from the end, including the latest item
+            skip = abs(end+1)
+            # limit by tje difference between start and end
+            limit = abs(start)-abs(end)+1
+            if self.query_debug: self.module.log_debug("find() "+key+" DESC skip "+str(skip)+" limit "+str(limit))
+            result = list(self.db[key].find().sort("timestamp", pymongo.DESCENDING).skip(skip).limit(limit))
+        # otherwise get all the data and use the array positions to get the requested values
+        else:
+            self.module.log_warning("not optimized query get_by_position("+key+","+str(start)+","+str(end)+")")
+            include_last = False
+            # include the boundary
+            if end >= 0 or (end < 0 and end != -1): 
+                end = end+1
+            # end is -1 so cannot include it directly (would be 0)
+            if end == -1: 
+                include_last = True
+            if self.query_debug: self.module.log_debug("find() "+key+" start "+str(start)+" end "+str(end))
+            all_values = list(self.db[key].find())
+            result = all_values[start:end]
+            # if include the latest value, add it to the result
+            if include_last and len(all_values) > 0: 
+                result+[all_values[-1]]
         data = self.normalize_dataset(result, withscores, milliseconds, format_date, formatter)
         if max_items is not None and len(data) > max_items: data = data[-max_items:]
         return data
@@ -124,7 +144,7 @@ class Db_mongo():
     # delete a key
     def delete(self, key):
         if self.query_debug: self.module.log_debug("drop() "+key)
-        self.collections.remove(key)
+        if key in self.collections: self.collections.remove(key)
         return self.db[key].drop()
 
     # rename a key
@@ -150,9 +170,30 @@ class Db_mongo():
 
     # delete all elements between a given rank
     def delete_by_position(self, key, start, end):
-        if self.query_debug: self.module.log_debug("find() "+key+" "+str(start)+" "+str(end))
-        # get all data from the collection sorting by timestamp and filtering based on the provided start and end
-        result = list(self.db[key].find({}, {'_id': 1}).sort("timestamp", pymongo.DESCENDING).skip(abs(end-1)).limit(abs(start)-abs(end)+1))
+        # if requested from the end, sort by timestamp in desending order and use skip and limit to get the values
+        if start < 0 and end < 0: 
+            # start from the end, including the latest item
+            skip = abs(end+1)
+            # limit by tje difference between start and end
+            limit = abs(start)-abs(end)+1
+            if self.query_debug: self.module.log_debug("find() "+key+" DESC skip "+str(skip)+" limit "+str(limit))
+            result = list(self.db[key].find({}, {'_id': 1}).sort("timestamp", pymongo.DESCENDING).skip(skip).limit(limit))
+        # otherwise get all the data and use the array positions to get the requested values
+        else:
+            include_last = False
+            # include the boundary
+            if end >= 0 or (end < 0 and end != -1): 
+                end = end+1
+            # end is -1 so cannot include it directly (would be 0)
+            if end == -1: 
+                include_last = True
+            if self.query_debug: self.module.log_debug("find() "+key+" start "+str(start)+" end "+str(end))
+            all_values = list(self.db[key].find())
+            result = all_values[start:end]
+            # if include the latest value, add it to the result
+            if include_last and len(all_values) > 0: 
+                result+[all_values[-1]]
+        # delete each document
         ids = []
         for item in result: ids.append(item["_id"])
         if self.query_debug: self.module.log_debug("remove() "+key+" "+str(ids))
@@ -175,21 +216,23 @@ class Db_mongo():
         
     # generate database statistics (key, #items, latest timestamp, earliest timestamp, latest value)
     def stats(self):
-        output = []
+        output = {}
+        output["keys"] = []
         keys = self.keys("*")
         for key in sorted(keys):
-            first = list(self.db[key].find_one().sort("timestamp", pymongo.ASCENDING))
-            last = list(self.db[key].find_one().sort("timestamp", pymongo.DESCENDING))
-            start = ""
-            end = ""
-            value = ""
-            if len(first) > 0:
-                start = first[0]["timestamp"]
-            if len(last) > 0:
-                start = last[0]["timestamp"]
-                value = last[0]["value"]
-            output.append([key, self.db[key].count(), start, end, sdk.python.utils.strings.truncate(value, 300)])
-            
+            first = self.db[key].find_one({"timestamp": {"$exists": True}}, sort=[("timestamp", pymongo.ASCENDING)])
+            last = self.db[key].find_one({"timestamp": {"$exists": True}}, sort=[("timestamp", pymongo.DESCENDING)])
+            if first is None or last is None or "timestamp" not in first or "timestamp" not in last: continue
+            start = first["timestamp"]
+            end = last["timestamp"]
+            value = last["value"]
+            key_stats = self.db.command("collstats", key)
+            output["keys"].append([key, self.db[key].count(), key_stats["size"], start, end, sdk.python.utils.strings.truncate(value, 300)])
+        db_stats = self.db.command("dbstats")
+        output["database_size"] = db_stats["dataSize"]
+        output["database_type"] = self.module.config["type"]
+        output["database_version"] = self.db_version
+        return output
 
     # initialize an empty database
     def init_database(self):

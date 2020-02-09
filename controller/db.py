@@ -151,7 +151,12 @@ class Db(Controller):
     # What to do when running
     def on_start(self):
         # initialize the database driver
-        self.db = Db_mongo(self)
+        if self.config["type"] == "redis": self.db = Db_redis(self)
+        elif self.config["type"] == "mongodb": self.db = Db_mongo(self)
+        else: 
+            self.log_error("Invalid database type: "+str(self.config["type"]))
+            self.join()
+            return
         # connect to the database
         self.db.connect()
         # initialize the database if needed 
@@ -306,7 +311,7 @@ class Db(Controller):
         
         # query the database
         elif message.command.startswith("GET"):
-            # 1) initialize query objecy. payload will be passed to the range* function, adding missing parameter key
+            # 1) initialize query object. payload will be passed to the query function, adding missing parameter key
             query = message.get_data().copy() if isinstance(message.get_data(), dict) else {}
             # select which area of the database to query (default to sensors)
             scope = self.sensors_key
@@ -337,13 +342,13 @@ class Db(Controller):
                     query["withscores"] = True
                     query["milliseconds"] = True
                 del query["timeframe"]
-            # 3) if start and/or end are timestamps, use rangebyscore, otherwise use range
-            if "start" in query and query["start"] > 1000:
-                function = self.db.rangebyscore
-            elif "end" in query and query["end"] > 1000:
-                function = self.db.rangebyscore
+            # 3) if start and/or end are timestamps, use get_by_timeframe, otherwise use get_by_position
+            if "start" in query and query["start"] > 1000000000:
+                function = self.db.get_by_timeframe
+            elif "end" in query and query["end"] > 1000000000:
+                function = self.db.get_by_timeframe
             else: 
-                function = self.db.range
+                function = self.db.get_by_position
             # reply to the requesting module
             message.reply()
             # 4) set if we need timestamps together with the values
@@ -484,6 +489,6 @@ class Db(Controller):
             if self.config: 
                 self.db.disconnect()
                 self.config = message.get_data()
-                self.db.connect()
+                self.on_start()
             else: self.config = message.get_data()
                 

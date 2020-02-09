@@ -13,6 +13,7 @@ class Db_redis():
         self.db_schema_version = 1
         self.query_debug = False
         self.module = module
+        self.db_version = None
         
      # connect to the database
     def connect(self):
@@ -27,7 +28,8 @@ class Db_redis():
                 self.module.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
                 self.db = redis.StrictRedis(host=hostname, port=port, db=int(database), password=password)
                 if self.db.ping():
-                    self.module.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db.info().get('redis_version'))
+                    self.db_version = self.db.info().get('redis_version')
+                    self.module.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db_version)
                     self.connected = True
             except Exception,e:
                 self.module.log_error("Unable to connect to "+hostname+":"+str(port)+" - "+exception.get(e))
@@ -111,17 +113,23 @@ class Db_redis():
         
     # generate database statistics (key, #items, latest timestamp, earliest timestamp, latest value)
     def stats(self):
-        output = []
+        output = {}
+        output["keys"] = []
         keys = self.keys("*")
         for key in sorted(keys):
             if self.db.type(key) != "zset": continue
-            data = self.range(key, 1, 1)
+            data = self.get_by_position(key, 1, 1)
             start = data[0][0] if len(data) > 0 else ""
-            data = self.range(key, -1, -1)
+            data = self.get_by_position(key, -1, -1)
             end = data[0][0] if len(data) > 0 else ""
             value = data[0][1] if len(data) > 0 else ""
-            output.append([key, self.db.zcard(key), start, end, sdk.python.utils.strings.truncate(value, 300)])
-            
+            key_size = self.db.execute_command("MEMORY USAGE", key)
+            output["keys"].append([key, self.db.zcard(key), key_size, start, end, sdk.python.utils.strings.truncate(value, 300)])
+        db_stats = self.db.info()
+        output["database_size"] = db_stats["used_memory_rss"]
+        output["database_type"] = self.module.config["type"]
+        output["database_version"] = self.db_version
+        return output   
 
     # initialize an empty database
     def init_database(self):
