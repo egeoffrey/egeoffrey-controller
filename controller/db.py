@@ -257,14 +257,15 @@ class Db(Controller):
             for dataset, subkeys in targets.iteritems():
                 if dataset not in policies: continue
                 retention = policies[dataset]
-                if retention == 0: continue # keep data forever
+                # keep data forever
+                if retention == 0: continue 
                 # for each stat to purge
                 for subkey in subkeys:
-                    key = key+subkey
-                    if self.db.exists(key):
+                    key_to_purge = key+subkey
+                    if self.db.exists(key_to_purge):
                         # if the key exists, delete old data
-                        deleted = self.db.delete_by_timeframe(key, "-inf", self.date.now() - retention*86400)
-                        self.log_debug("["+sensor_id+"] deleting from "+key+" "+str(deleted)+" old items")
+                        deleted = self.db.delete_by_timeframe(key_to_purge, "-inf", self.date.now() - retention*86400)
+                        self.log_debug("["+sensor_id+"] deleting from "+key_to_purge+" "+str(deleted)+" old items")
                         total = total + deleted
             if total > 0: self.log_info("["+sensor_id+"] deleted "+str(total)+" old values")
             

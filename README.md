@@ -91,4 +91,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.1-5 on the development branch.
+The version of this egeoffrey-controller is 1.1-6 on the development branch.
