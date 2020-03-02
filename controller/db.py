@@ -250,8 +250,8 @@ class Db(Controller):
             # define which stat to purge for each dataset
             targets = {
                 "raw": [""],
-                "hourly": ["/hour/min","/hour/avg","/hour/max","/hour/rate"],
-                "daily": ["/day/min","/day/avg","/day/max","/day/rate"],
+                "hourly": ["/hour/min", "/hour/avg", "/hour/max", "/hour/rate", "/hour/sum"],
+                "daily": ["/day/min", "/day/avg", "/day/max", "/day/rate", "/day/sum"],
             }
             # for each dataset, purge the associated subkeys
             for dataset, subkeys in targets.iteritems():
