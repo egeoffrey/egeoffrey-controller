@@ -25,7 +25,6 @@
 # - */* SAVED: notify a new measure has been saved
 
 import time
-import redis
 import re
 import os
 import json
@@ -41,6 +40,8 @@ import sdk.python.constants
 import sdk.python.utils.numbers
 import sdk.python.utils.strings
 
+from db_redis import Db_redis
+from db_mongo import Db_mongo
 
 class Db(Controller):
     # What to do when initializing    
@@ -51,170 +52,23 @@ class Db(Controller):
         self.alerts_key = self.root_key+"/alerts"
         self.logs_key = self.root_key+"/logs"
         self.version_key = self.root_key+"/version"
-        self.query_debug = False
         # module's configuration
         self.config = {}
-        # database object
-        self.db = None
-        self.db_connected = False
-        self.db_schema_version = 1
         # date/time helper
         self.date = None
         self.house = None
+        # database driver
+        self.db = None
         # configuration override
         self.hostname = os.getenv("EGEOFFREY_DATABASE_HOSTNAME", None)
         self.port = os.getenv("EGEOFFREY_DATABASE_PORT", None)
-        self.database = os.getenv("EGEOFFREY_DATABASE_NUMBER", None)
+        self.database = os.getenv("EGEOFFREY_DATABASE_NAME", None)
+        self.username = os.getenv("EGEOFFREY_DATABASE_USERNAME", None)
+        self.password = os.getenv("EGEOFFREY_DATABASE_PASSWORD", None)
         # request required configuration files
-        self.config_schema = 1
+        self.config_schema = 2
         self.add_configuration_listener(self.fullname, "+", True)
         self.add_configuration_listener("house", 1, True)
-    
-    # connect to the database
-    def connect(self):
-        hostname = self.hostname if self.hostname is not None else self.config["hostname"]
-        port = self.port if self.port is not None else self.config["port"]
-        database = self.database if self.database is not None else self.config["database"]
-        while not self.db_connected:
-            try: 
-                self.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
-                self.db = redis.StrictRedis(host=hostname, port=port, db=database)
-                if self.db.ping():
-                    self.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db.info().get('redis_version'))
-                    self.db_connected = True
-            except Exception,e:
-                self.log_error("Unable to connect to "+hostname+":"+str(port))
-                self.sleep(5)
-                if self.stopping: break
-    
-    # disconnect from the database
-    def disconnect(self):
-        if self.db_connected: self.db.connection_pool.disconnect()
-    
-    # normalize the output
-    def normalize_dataset(self, data, withscores, milliseconds, format_date, formatter):
-        output = []
-        for entry in data:
-            # get the timestamp 
-            timestamp = int(entry[1])
-            if format_date: timestamp = self.date.timestamp2date(timestamp)
-            elif milliseconds: timestamp = timestamp*1000
-            # normalize the value (entry is timetime:value)
-            value_string = entry[0].split(":",1)[1];
-            if formatter is None:
-                # no formatter provided, guess the type
-                value = float(value_string) if sdk.python.utils.numbers.is_number(value_string) else str(value_string)
-            else:
-                # formatter provided, normalize the value
-                value = sdk.python.utils.numbers.normalize(value_string, formatter)
-            # normalize "None" in null
-            if value == "None": value = None
-            # prepare the output
-            if (withscores): output.append([timestamp,value])
-            else: output.append(value)
-        return output
-
-    # show the available keys applying the given filter
-    def keys(self, key):
-        if self.query_debug: self.log_debug("keys "+key)
-        return self.db.keys(key)
-
-    # save a value to the db
-    def set(self, key, value, timestamp, log=True):
-        if timestamp is None: 
-            if log: self.log_warning("no timestamp provided for key "+key)
-            return 
-        # zadd with the scorecore	
-        value = str(timestamp)+":"+str(value)
-        if self.query_debug and log: self.log_debug("zadd "+key+" "+str(timestamp)+" "+str(value))
-        return self.db.zadd(key, timestamp, value)
-
-    # set a single value into the db
-    def set_simple(self, key,value):
-        if self.query_debug: self.log_debug("set "+str(key))
-        self.db.set(key, str(value))
-
-    # get a single value from the db
-    def get(self, key):
-        if self.query_debug: self.log_debug("get "+key)
-        return self.db.get(key)
-
-    # get a range of values from the db based on the timestamp
-    def rangebyscore(self, key, start=None, end=None, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
-        if start is None: start = self.date.now()-24*3600
-        if end is None: end = self.date.now()
-        if self.query_debug: self.log_debug("zrangebyscore "+key+" "+str(start)+" "+str(end))
-        data = self.normalize_dataset(self.db.zrangebyscore(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
-        if max_items is not None and len(data) > max_items: data = data[-max_items:]
-        return data
-        
-    # get a range of values from the db
-    def range(self, key,start=-1, end=-1, withscores=True, milliseconds=False, format_date=False, formatter=None, max_items=None):
-        if self.query_debug: self.log_debug("zrange "+key+" "+str(start)+" "+str(end))
-        data = self.normalize_dataset(self.db.zrange(key, start, end, withscores=True), withscores, milliseconds, format_date, formatter)
-        if max_items is not None and len(data) > max_items: data = data[-max_items:]
-        return data
-
-    # delete a key
-    def delete(self, key):
-        if self.query_debug: self.log_debug("del "+key)
-        return self.db.delete(key)
-
-    # rename a key
-    def rename(self, key,new_key):
-        if self.query_debug: self.log_debug("rename "+key+" "+new_key)
-        return self.db.rename(key, new_key)
-
-    # delete all elements between a given score
-    def deletebyscore(self, key,start,end):
-        if self.query_debug: self.log_debug("zremrangebyscore "+key+" "+str(start)+" "+str(end))
-        return self.db.zremrangebyscore(key, start, end)
-
-    # delete all elements between a given rank
-    def deletebyrank(self, key,start,end):
-        if self.query_debug: self.log_debug("zremrangebyrank "+key+" "+str(start)+" "+str(end))
-        return self.db.zremrangebyrank(key, start, end)
-
-    # check if a key exists
-    def exists(self, key):
-        if self.query_debug: self.log_debug("exists "+key)
-        return self.db.exists(key)
-
-    # empty the database
-    def flushdb(self):
-        if self.query_debug: self.log_debug("flushdb")
-        return self.db.flushdb()
-
-    # initialize an empty database
-    def init_database(self):
-        version = self.get_version()
-        # no version found, assuming first installation
-        if version is None:
-            self.log_info("Setting database schema to v"+str(self.db_schema_version))
-            self.set_version(self.db_schema_version)
-        else:
-            version = int(version)
-            # already at the latest version
-            if version == self.db_schema_version:
-                pass
-            # database schema needs to be upgraded
-            elif version < self.db_schema_version: 
-                pass
-            # higher version, something strange is happening
-            elif version > self.db_schema_version: 
-                self.log_error("database schema v"+str(version)+" is higher than the supported schema v"+str(self.db_schema_version))
-
-
-    # return eGeoffrey version or None
-    def get_version(self):
-        version_key = self.version_key
-        if not self.exists(version_key): return None
-        return self.get(version_key)
-
-    # set eGeoffrey version to the database
-    def set_version(self, version):
-        version_key = self.version_key
-        self.set_simple(version_key, version)
 
     # calculate derived aggregations such as min, max and avg value
     def calculate(self, sensor_id, calculations, group_by, start, end):
@@ -239,7 +93,7 @@ class Db(Controller):
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
                 return
         # retrieve from the database the data based on the given timeframe
-        data = self.rangebyscore(key_to_read, start, end, withscores=True)
+        data = self.db.get_by_timeframe(key_to_read, start, end, withscores=True)
         # split between values and timestamps
         values = []
         timestamps = []
@@ -252,37 +106,37 @@ class Db(Controller):
         if "avg" in calculations:
             # calculate avg
             avg = sdk.python.utils.numbers.avg(values)
-            self.deletebyscore(key_to_write+"/avg", start, end)
-            self.set(key_to_write+"/avg", avg, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/avg", start, end)
+            self.db.set_series(key_to_write+"/avg", avg, timestamp)
         if "min_max" in calculations:
             # calculate min
             min = sdk.python.utils.numbers.min(values)
-            self.deletebyscore(key_to_write+"/min", start, end)
-            self.set(key_to_write+"/min", min, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/min", start, end)
+            self.db.set_series(key_to_write+"/min", min, timestamp)
             # calculate max
             max = sdk.python.utils.numbers.max(values)
-            self.deletebyscore(key_to_write+"/max", start, end)
-            self.set(key_to_write+"/max", max, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/max", start, end)
+            self.db.set_series(key_to_write+"/max", max, timestamp)
         if "rate" in calculations:
             # calculate the rate of change
             rate = sdk.python.utils.numbers.velocity(timestamps, values)
-            self.deletebyscore(key_to_write+"/rate", start, end)
-            self.set(key_to_write+"/rate", rate, timestamp)
+            self.db.delete_by_timeframe(key_to_write+"/rate", start, end)
+            self.db.set_series(key_to_write+"/rate", rate, timestamp)
         if "sum" in calculations:
                 # calculate the sum
                 sum = sdk.python.utils.numbers.sum(values)
-                self.deletebyscore(key_to_write+"/sum", start, end)
-                self.set(key_to_write+"/sum", sum, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/sum", start, end)
+                self.db.set_series(key_to_write+"/sum", sum, timestamp)
         if "count" in calculations:
                 # count the values
                 count = sdk.python.utils.numbers.count(values)
-                self.deletebyscore(key_to_write+"/count", start, end)
-                self.set(key_to_write+"/count", count, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/count", start, end)
+                self.db.set_series(key_to_write+"/count", count, timestamp)
         if "count_unique" in calculations:
                 # count the unique values
                 count_unique = sdk.python.utils.numbers.count_unique(values)
-                self.deletebyscore(key_to_write+"/count_unique", start, end)
-                self.set(key_to_write+"/count_unique", count_unique, timestamp)
+                self.db.delete_by_timeframe(key_to_write+"/count_unique", start, end)
+                self.db.set_series(key_to_write+"/count_unique", count_unique, timestamp)
         # broadcast value updated message
         message = Message(self)
         message.recipient = "*/*"
@@ -296,19 +150,26 @@ class Db(Controller):
 
     # What to do when running
     def on_start(self):
+        # initialize the database driver
+        if self.config["type"] == "redis": self.db = Db_redis(self)
+        elif self.config["type"] == "mongodb": self.db = Db_mongo(self)
+        else: 
+            self.log_error("Invalid database type: "+str(self.config["type"]))
+            self.join()
+            return
         # connect to the database
-        self.connect()
+        self.db.connect()
         # initialize the database if needed 
-        self.init_database()
+        self.db.init_database()
         
     # What to do when shutting down
     def on_stop(self):
         # disconnect from the database
-        self.disconnect()
+        self.db.disconnect()
 
     # What to do when receiving a request for this module    
     def on_message(self, message):
-        if not self.db_connected: return # ignore the request if not connected yet
+        if self.db is None or not self.db.connected: return # ignore the request if not connected yet
         item_id = message.args # item_id contains sensor_id, rule_id, etc.
         
         # save a timestamp:value pair in the database to the given key
@@ -321,11 +182,11 @@ class Db(Controller):
                 retain = message.get("retain")
                 # if we have to keep up to "count" values, delete old values from the db
                 if "count" in retain:
-                    self.deletebyrank(key, 0, -retain["count"])
+                    self.db.delete_by_position(key, 0, -retain["count"])
                 # if only measures with a newer timestamp than the latest can be added, apply the policy
                 if "new_only" in retain and retain["new_only"]:
                     # retrieve the latest measure's timestamp
-                    last = self.range(key, -1, -1)
+                    last = self.db.get_by_position(key, -1, -1)
                     if len(last) > 0:
                         last_timestamp = last[0][0]
                         # if the measure's timestamp is older or the same, skip it
@@ -333,7 +194,7 @@ class Db(Controller):
                             self.log_debug("["+item_id+"] ("+self.date.timestamp2date(message.get("timestamp"))+") old event, ignoring "+key+": "+str(message.get("value")))
                             return
             # 3) check if there is already something stored with the same timestamp
-            old = self.rangebyscore(key, message.get("timestamp"), message.get("timestamp"))
+            old = self.db.get_by_timeframe(key, message.get("timestamp"), message.get("timestamp"))
             if len(old) > 0:
                 if old[0][1] == message.get("value"):
                     # if the value is also the same, skip it
@@ -341,9 +202,9 @@ class Db(Controller):
                     return
                 else: 
                     # same timestamp but different value, remove the old value so to store the new one
-                    self.deletebyscore(key, message.get("timestamp"), message.get("timestamp"))
+                    self.db.delete_by_timeframe(key, message.get("timestamp"), message.get("timestamp"))
             # 4) save the new value
-            self.set(key, message.get("value"), message.get("timestamp"))
+            self.db.set_series(key, message.get("value"), message.get("timestamp"))
             # 5) broadcast acknowledge value updated
             ack_message = Message(self)
             ack_message.recipient = "*/*"
@@ -364,13 +225,13 @@ class Db(Controller):
         # save alert
         elif message.command == "SAVE_ALERT":
             key = self.alerts_key+"/"+item_id
-            self.set(key, message.get_data(), self.date.now())
+            self.db.set_series(key, message.get_data(), self.date.now())
             self.log_debug("["+item_id+"] saving alert '"+message.get_data()+"'")
             
         # save log
         elif message.command == "SAVE_LOG":
             key = self.logs_key+"/"+item_id
-            self.set(key, message.get_data(), self.date.now(), False)
+            self.db.set_series(key, message.get_data(), self.date.now(), False)
         
         # calculate hourly statistics for the requested sensor
         elif message.command == "CALC_HOUR_STATS":
@@ -389,21 +250,22 @@ class Db(Controller):
             # define which stat to purge for each dataset
             targets = {
                 "raw": [""],
-                "hourly": ["/hour/min","/hour/avg","/hour/max","/hour/rate"],
-                "daily": ["/day/min","/day/avg","/day/max","/day/rate"],
+                "hourly": ["/hour/min", "/hour/avg", "/hour/max", "/hour/rate", "/hour/sum"],
+                "daily": ["/day/min", "/day/avg", "/day/max", "/day/rate", "/day/sum"],
             }
             # for each dataset, purge the associated subkeys
             for dataset, subkeys in targets.iteritems():
                 if dataset not in policies: continue
                 retention = policies[dataset]
-                if retention == 0: continue # keep data forever
+                # keep data forever
+                if retention == 0: continue 
                 # for each stat to purge
                 for subkey in subkeys:
-                    key = key+subkey
-                    if self.exists(key):
+                    key_to_purge = key+subkey
+                    if self.db.exists(key_to_purge):
                         # if the key exists, delete old data
-                        deleted = self.deletebyscore(key, "-inf", self.date.now() - retention*86400)
-                        self.log_debug("["+sensor_id+"] deleting from "+key+" "+str(deleted)+" old items")
+                        deleted = self.db.delete_by_timeframe(key_to_purge, "-inf", self.date.now() - retention*86400)
+                        self.log_debug("["+sensor_id+"] deleting from "+key_to_purge+" "+str(deleted)+" old items")
                         total = total + deleted
             if total > 0: self.log_info("["+sensor_id+"] deleted "+str(total)+" old values")
             
@@ -411,10 +273,10 @@ class Db(Controller):
         elif message.command == "PURGE_ALERTS":
             days = message.get_data()
             total = 0
-            for severity in ["info", "warning", "alert"]:
+            for severity in ["info", "warning", "alert", "value"]:
                 key = self.alerts_key+"/"+severity
-                if self.exists(key):
-                    deleted = self.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                if self.db.exists(key):
+                    deleted = self.db.delete_by_timeframe(key,"-inf",self.date.now()-days*86400)
                     self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
                     total = total + deleted
             if total > 0: self.log_info("deleted "+str(total)+" old alerts")
@@ -425,8 +287,8 @@ class Db(Controller):
             total = 0
             for severity in ["debug", "info", "warning", "error"]:
                 key = self.logs_key+"/"+severity
-                if self.exists(key):
-                    deleted = self.deletebyscore(key,"-inf",self.date.now()-days*86400)
+                if self.db.exists(key):
+                    deleted = self.db.delete_by_timeframe(key,"-inf",self.date.now()-days*86400)
                     self.log_debug("deleting from "+severity+" "+str(deleted)+" items")
                     total = total + deleted
             if total > 0: self.log_info("deleted "+str(total)+" old logs")
@@ -435,32 +297,22 @@ class Db(Controller):
         elif message.command == "DELETE_SENSOR":
             key = self.sensors_key+"/"+item_id
             self.log_info("deleting from the database sensor "+item_id)
-            self.delete(key)
+            self.db.delete(key)
             self.log_debug("deleting key "+key)
             for timeframe in ["hour", "day"]:
                 for stat in ["min", "avg", "max", "rate", "sum", "count", "count_unique"]:
-                    self.delete(key+"/"+timeframe+"/"+stat)
+                    self.db.delete(key+"/"+timeframe+"/"+stat)
                     self.log_debug("deleting key "+key+"/"+timeframe+"/"+stat)
             
         # database statistics
         elif message.command == "STATS":
-            output = []
-            keys = self.keys("*")
-            for key in sorted(keys):
-                if self.db.type(key) != "zset": continue
-                data = self.range(key, 1, 1)
-                start = data[0][0] if len(data) > 0 else ""
-                data = self.range(key, -1, -1)
-                end = data[0][0] if len(data) > 0 else ""
-                value = data[0][1] if len(data) > 0 else ""
-                output.append([key, self.db.zcard(key), start, end, sdk.python.utils.strings.truncate(value, 300)])
             message.reply()
-            message.set_data(output)
+            message.set_data(self.db.stats())
             self.send(message)
         
         # query the database
         elif message.command.startswith("GET"):
-            # 1) initialize query objecy. payload will be passed to the range* function, adding missing parameter key
+            # 1) initialize query object. payload will be passed to the query function, adding missing parameter key
             query = message.get_data().copy() if isinstance(message.get_data(), dict) else {}
             # select which area of the database to query (default to sensors)
             scope = self.sensors_key
@@ -491,13 +343,13 @@ class Db(Controller):
                     query["withscores"] = True
                     query["milliseconds"] = True
                 del query["timeframe"]
-            # 3) if start and/or end are timestamps, use rangebyscore, otherwise use range
-            if "start" in query and query["start"] > 1000:
-                function = self.rangebyscore
-            elif "end" in query and query["end"] > 1000:
-                function = self.rangebyscore
+            # 3) if start and/or end are timestamps, use get_by_timeframe, otherwise use get_by_position
+            if "start" in query and query["start"] > 1000000000:
+                function = self.db.get_by_timeframe
+            elif "end" in query and query["end"] > 1000000000:
+                function = self.db.get_by_timeframe
             else: 
-                function = self.range
+                function = self.db.get_by_position
             # reply to the requesting module
             message.reply()
             # 4) set if we need timestamps together with the values
@@ -624,14 +476,20 @@ class Db(Controller):
             self.house = message.get_data()
         # module's configuration
         elif message.args == self.fullname:     
+            # upgrade the schema
+            if message.config_schema == 1 and not message.is_null:
+                config = message.get_data()
+                config["type"] = "redis"
+                self.upgrade_config(message.args, message.config_schema, 2, config)
+                return
             if message.config_schema != self.config_schema: 
                 return False
             # ensure the configuration file contains all required settings
-            if not self.is_valid_configuration(["hostname", "port", "database"], message.get_data()): return False
+            if not self.is_valid_configuration(["type", "hostname", "port", "database"], message.get_data()): return False
             # if this is an updated configuration file, disconnect and reconnect
             if self.config: 
-                self.disconnect()
+                self.db.disconnect()
                 self.config = message.get_data()
-                self.connect()
+                self.on_start()
             else: self.config = message.get_data()
                 

@@ -33,6 +33,7 @@ class Config(Controller):
         self.config_dir = os.getenv("EGEOFFREY_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
         self.log_debug("Configuration directory set to "+self.config_dir)
         self.force_reload = int(os.getenv("EGEOFFREY_CONFIG_FORCE_RELOAD", 0))
+        self.force_reload_timeout = int(os.getenv("EGEOFFREY_CONFIG_FORCE_RELOAD_TIMEOUT", 10))
         self.accept_default_config = int(os.getenv("EGEOFFREY_CONFIG_ACCEPT_DEFAULTS", 1))
         # keep track of the old config index
         self.old_index = None
@@ -206,6 +207,11 @@ class Config(Controller):
         if not os.path.isfile(file_path):
             self.log_warning(file_path+" does not exist")
             return
+        # backup existing file
+        with open(file_path) as f: backup_content = f.read()
+        f = open(file_path.replace(".yml", ".bck"), "w")
+        f.write(backup_content)
+        f.close()
         # delete the file
         os.remove(file_path)
         self.clear_config(filename, version)
@@ -265,7 +271,7 @@ class Config(Controller):
         # receive manifest files with default config
         self.add_broadcast_listener("+/+", "MANIFEST", "#")
         # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
-        self.sleep(60)
+        self.sleep(self.force_reload_timeout)
         while True:
             if not self.load_config_running:
                 # ask for the index
