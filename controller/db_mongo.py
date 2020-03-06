@@ -30,7 +30,7 @@ class Db_mongo():
         while not self.connected:
             try: 
                 self.module.log_debug("Connecting to database "+str(database)+" at "+hostname+":"+str(port))
-                self.client = pymongo.MongoClient("mongodb://"+username+":"+password+"@"+hostname+":"+str(port)+"/")
+                self.client = pymongo.MongoClient("mongodb://"+username+":"+password+"@"+hostname+":"+str(port)+"/"+str(database))
                 self.db = self.client[database]
                 self.db_version = str(self.client.server_info()["version"])
                 self.module.log_info("Connected to database "+str(database)+" at "+hostname+":"+str(port)+", mongodb version "+self.db_version)

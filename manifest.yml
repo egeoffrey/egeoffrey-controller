@@ -111,6 +111,6 @@ modules:
       name: duplicates_tolerance
       required: false
 package: egeoffrey-controller
-revision: 9
+revision: 10
 tags: controller
 version: 1.1
