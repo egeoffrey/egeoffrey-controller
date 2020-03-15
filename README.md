@@ -91,4 +91,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.1-11 on the python3 branch.
+The version of this egeoffrey-controller is 1.1-12 on the python3 branch.

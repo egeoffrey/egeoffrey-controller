@@ -51,7 +51,7 @@ class Config(Controller):
     # return a hash
     def get_hash(self, content):
         hasher = hashlib.md5()
-        hasher.update(content)
+        hasher.update(content.encode("utf-8"))
         return hasher.hexdigest()
         
     # split filename from version given a filename
