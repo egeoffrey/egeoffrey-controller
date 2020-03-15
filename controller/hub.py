@@ -155,13 +155,13 @@ class Hub(Controller):
                 command = self.config["processors"][sensor["post_processor"]].replace("%value%",str(orig_value))
                 message.set("value", sdk.python.utils.command.run(command))
                 self.log_debug("["+sensor_id+"] post-processing "+str(orig_value)+" into "+str(message.get("value")))
-            except Exception,e: 
+            except Exception as e: 
                 self.log_error("["+sensor_id+"] Unable to post-process "+str(orig_value)+" by running "+str(command)+": "+exception.get(e))
                 return None
         # 3) normalize the value according to its format
         try:
             message.set("value", sdk.python.utils.numbers.normalize(message.get("value"), sensor["format"]))
-        except Exception,e: 
+        except Exception as e: 
             self.log_error("["+sensor_id+"] Unable to normalize "+str(message.get("value"))+": "+exception.get(e))
             return None
         # 4) if we are requested to save the same value of the latest in a very short time, ignore it
@@ -228,7 +228,7 @@ class Hub(Controller):
                         command = self.config["processors"][sensor["pre_processor"]].replace("%value%",str(orig_value))
                         message.set("value", sdk.python.utils.command.run(command))
                         self.log_debug("["+sensor_id+"] pre-processing "+str(orig_value)+" into "+str(message.get("value")))
-                    except Exception,e: 
+                    except Exception as e: 
                         self.log_error("["+sensor_id+"] Unable to pre-process "+str(orig_value)+" by running "+str(command)+": "+exception.get(e))
                         return None
                 # forward the message to the service

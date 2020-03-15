@@ -40,8 +40,8 @@ import sdk.python.constants
 import sdk.python.utils.numbers
 import sdk.python.utils.strings
 
-from db_redis import Db_redis
-from db_mongo import Db_mongo
+from .db_redis import Db_redis
+from .db_mongo import Db_mongo
 
 class Db(Controller):
     # What to do when initializing    
@@ -254,7 +254,7 @@ class Db(Controller):
                 "daily": ["/day/min", "/day/avg", "/day/max", "/day/rate", "/day/sum"],
             }
             # for each dataset, purge the associated subkeys
-            for dataset, subkeys in targets.iteritems():
+            for dataset, subkeys in targets.items():
                 if dataset not in policies: continue
                 retention = policies[dataset]
                 # keep data forever
@@ -391,14 +391,14 @@ class Db(Controller):
                 # get position (only the first one if multiple are provided)
                 try:
                     position = json.loads(data[0])
-                except Exception,e: 
+                except Exception as e: 
                     self.log_warning("unable to get the distance from an invalid position: "+str(data)+" - "+exception.get(e))
                     return
                 if "longitude" not in position or "latitude" not in position: 
                     self.log_warning("invalid position provided: "+str(position))
                     return
                 # convert decimal degrees to radians 
-                lon1, lat1, lon2, lat2 = map(radians, [position["longitude"], position["latitude"], self.house["longitude"], self.house["latitude"]])
+                lon1, lat1, lon2, lat2 = list(map(radians, [position["longitude"], position["latitude"], self.house["longitude"], self.house["latitude"]]))
                 # haversine formula 
                 dlon = lon2 - lon1 
                 dlat = lat2 - lat1 
@@ -412,7 +412,7 @@ class Db(Controller):
                 if len(data) == 0: return []
                 try:
                     position = json.loads(data[0])
-                except Exception,e: 
+                except Exception as e: 
                     self.log_warning("unable to get the text from an invalid position: "+str(data)+" - "+exception.get(e))
                     return
                 if "text" not in position: 
@@ -424,7 +424,7 @@ class Db(Controller):
                 if len(data) == 0: return []
                 try:
                     position = json.loads(data[0])
-                except Exception,e: 
+                except Exception as e: 
                     self.log_warning("unable to get the label from an invalid position: "+str(data)+" - "+exception.get(e))
                     return
                 if "label" not in position: 
@@ -437,7 +437,7 @@ class Db(Controller):
                 # the calendar string is at position 0
                 try:
                     calendar = json.loads(data[0])
-                except Exception,e: 
+                except Exception as e: 
                     self.log_warning("unable to parse calendar's data: "+str(data)+" - "+exception.get(e))
                     return []
                 # the list of events is at position 1

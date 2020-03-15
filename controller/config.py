@@ -93,7 +93,7 @@ class Config(Controller):
                 # ensure the yaml file is valid
                 try:
                     yaml.load(content, Loader=yaml.SafeLoader)
-                except Exception,e: 
+                except Exception as e: 
                     self.log_warning("configuration file in an invalid YAML format: "+filename+" - "+exception.get(e))
                     continue
                 # remove base configuration dir to build the topic and append version number
@@ -229,7 +229,7 @@ class Config(Controller):
         # ensure the file is in the correct format
         try:
             content = yaml.safe_dump(data, default_flow_style=False)
-        except Exception,e: 
+        except Exception as e: 
             self.log_warning("unable to save "+file+", invalid YAML format: "+str(data)+" - "+exception.get(e))
             return
         if content is None: return
@@ -240,7 +240,7 @@ class Config(Controller):
             if not os.path.exists(path):
                 try:
                     os.makedirs(path)
-                except Exception,e: 
+                except Exception as e: 
                     self.log_error("unable to create directory "+path+": "+exception.get(e))
                     return
         # backup existing file if any
@@ -265,7 +265,7 @@ class Config(Controller):
         if not os.path.exists(self.config_dir):
             try:
                 os.makedirs(self.config_dir)
-            except Exception,e: 
+            except Exception as e: 
                 self.log_error("unable to create directory "+self.config_dir+": "+exception.get(e))
         self.load_config()
         # receive manifest files with default config
@@ -331,7 +331,7 @@ class Config(Controller):
                     # ensure the file is in a valid YAML format
                     try:
                         content = yaml.safe_dump(file_content, default_flow_style=False)
-                    except Exception,e:
+                    except Exception as e:
                         self.log_warning("unable to save "+filename+", invalid YAML format: "+str(file_content)+" - "+exception.get(e))
                         return
                     # save the new/updated default configuration file

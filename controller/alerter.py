@@ -138,7 +138,7 @@ class Alerter(Controller):
     # retrieve the values of all the configured variables of the given rule_id. Continues in on_messages() when receiving values from db
     def run_rule(self, rule_id, macro=None):
         # if macro is defined, run the rule for that macro only, otherwise run for all the macros
-        macros = [macro] if macro is not None else self.rules[rule_id].keys()
+        macros = [macro] if macro is not None else list(self.rules[rule_id].keys())
         for macro in macros:
             rule = self.rules[rule_id][macro]
             # ensure this rule is not run too often to avoid loops
@@ -154,11 +154,11 @@ class Alerter(Controller):
             self.values[rule_id][macro] = {}
             # for every constant, store its value as is so will be ready for the evaluation
             if "constants" in rule:
-                for constant_id, value in rule["constants"].iteritems():
+                for constant_id, value in rule["constants"].items():
                     self.values[rule_id][macro][constant_id] = value
             # for every variable, retrieve its latest value to the database
             if "variables" in rule:
-                for variable_id, variable in rule["variables"].iteritems():
+                for variable_id, variable in rule["variables"].items():
                     # process the variable string (0: request, 1: start, 2: end, 3: sensor_id)
                     match = re.match(self.variable_regexp, variable)
                     if match is None: continue

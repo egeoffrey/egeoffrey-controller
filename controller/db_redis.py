@@ -31,7 +31,7 @@ class Db_redis():
                     self.db_version = self.db.info().get('redis_version')
                     self.module.log_info("Connected to database #"+str(database)+" at "+hostname+":"+str(port)+", redis version "+self.db_version)
                     self.connected = True
-            except Exception,e:
+            except Exception as e:
                 self.module.log_error("Unable to connect to "+hostname+":"+str(port)+" - "+exception.get(e))
                 self.module.sleep(5)
                 if self.module.stopping: break       

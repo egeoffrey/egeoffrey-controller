@@ -59,8 +59,8 @@ class Logger(Controller):
             if not os.path.exists(log_dir):
                 try:
                     os.makedirs(log_dir)
-                except Exception,e: 
-                    print "unable to create directory "+log_dir+": "+exception.get(e)
+                except Exception as e: 
+                    print("unable to create directory "+log_dir+": "+exception.get(e))
             if os.path.exists(log_dir):
                 file = logging.handlers.RotatingFileHandler(log_dir+"/egeoffrey.log", maxBytes=self.config["file_rotate_size"]*1024*1024, backupCount=self.config["file_rotate_count"])
                 file.setLevel(logging.INFO)
@@ -126,7 +126,7 @@ class Logger(Controller):
             if time.time() == self.msg_time:
                 self.msg_count = self.msg_count + 1
                 if self.msg_count == self.max_msg_rate:
-                    print "Too many logs in a short time, suppressing output"
+                    print("Too many logs in a short time, suppressing output")
                     return
                 if self.msg_count > self.max_msg_rate:
                     return

@@ -65,7 +65,7 @@ class Chatbot(Controller):
     
     # evaluate how confident we are to respond with on of the items of the kb provided for the current request
     def evaluate(self, request, kb):
-        return process.extractOne(request, kb.keys(), scorer=self.scorer)
+        return process.extractOne(request, list(kb.keys()), scorer=self.scorer)
     
     # What to do when receiving a request for this module    
     def on_message(self, message):

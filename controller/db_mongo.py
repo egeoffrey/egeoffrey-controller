@@ -35,7 +35,7 @@ class Db_mongo():
                 self.db_version = str(self.client.server_info()["version"])
                 self.module.log_info("Connected to database "+str(database)+" at "+hostname+":"+str(port)+", mongodb version "+self.db_version)
                 self.connected = True
-            except Exception,e:
+            except Exception as e:
                 self.module.log_error("Unable to connect to "+hostname+":"+str(port)+" - "+exception.get(e))
                 self.module.sleep(5)
                 if self.module.stopping: break       
@@ -96,9 +96,9 @@ class Db_mongo():
         if start is None: start = self.module.date.now()-24*3600
         if end is None: end = self.module.date.now()
         if start == "-inf": start = 0
-        if start == "+inf": start = sys.maxint
+        if start == "+inf": start = sys.maxsize
         if end == "-inf": end = 0
-        if end == "+inf": end = sys.maxint
+        if end == "+inf": end = sys.maxsize
         filter = {
             "$and": [
                 {"timestamp" : {"$gte": start}},
@@ -155,9 +155,9 @@ class Db_mongo():
     # delete all elements between a given score
     def delete_by_timeframe(self, key, start, end):
         if start == "-inf": start = 0
-        if start == "+inf": start = sys.maxint
+        if start == "+inf": start = sys.maxsize
         if end == "-inf": end = 0
-        if end == "+inf": end = sys.maxint
+        if end == "+inf": end = sys.maxsize
         filter = {
             "$and": [
                 {"timestamp" : {"$gte": start}},
