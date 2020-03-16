@@ -160,7 +160,7 @@ class Db_redis():
             if format_date: timestamp = self.module.date.timestamp2date(timestamp)
             elif milliseconds: timestamp = timestamp*1000
             # normalize the value (entry is timetime:value)
-            value_string = entry[0].split(":",1)[1];
+            value_string = entry[0].decode().split(":",1)[1]
             if formatter is None:
                 # no formatter provided, guess the type
                 value = float(value_string) if sdk.python.utils.numbers.is_number(value_string) else str(value_string)
