@@ -379,7 +379,7 @@ class Db(Controller):
                 if len(data) == 0: 
                     data = []
                 else: 
-                    time_diff = (self.date.now() - data[0][0])/60
+                    time_diff = self.date.now() - data[0][0]
                     data = [time_diff]
             # the timestamp of the measure is requested, return it
             elif message.command == "GET_TIMESTAMP":

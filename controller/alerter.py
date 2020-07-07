@@ -51,6 +51,8 @@ class Alerter(Controller):
         self.sensors = {}
         # map for each rule_id/variable, the associated sensor_id
         self.variables = {}
+        # map for each rule_id the number of notifications sent by hour
+        self.notifications = {}
         # scheduler is needed for scheduling rules
         self.scheduler = Scheduler(self)
         # regular expression used to parse variables
@@ -234,7 +236,11 @@ class Alerter(Controller):
         if len(or_evaluations) == 0: or_evaluation = True
         self.log_debug("["+rule_id+"]["+macro+"] rule evaluates to "+str(or_evaluation))
         # evaluate to false, just return
-        if not or_evaluation: return
+        if not or_evaluation: 
+            return
+        # if suppress is in place for this rule, just return
+        if self.filter_notification(rule_id, rule):
+            return            
         # 2) execute the requested actions
         if "actions" in rule:
             for action in rule["actions"]:
@@ -406,6 +412,32 @@ class Alerter(Controller):
     # What to do when shutting down
     def on_stop(self):
         self.scheduler.stop()
+
+    # if notification suppression is configured, check if already hit the limit and if so return True, False otherwise
+    def filter_notification(self, rule_id, rule):
+        # if there is no filter configured, return
+        if "suppress" not in rule:
+            return False
+        configuration = rule["suppress"]
+        if "rate_hour" not in configuration:
+            return False
+        # get the current hour
+        current_hour = int(time.strftime("%H"))
+        # if this is the first time we run, initialize the data structure
+        if rule_id not in self.notifications:
+            self.notifications[rule_id] = {}
+            self.notifications[rule_id]["hour"] = current_hour
+            self.notifications[rule_id]["counter"] = 0
+        # if this is a new hour, reset the notification counter
+        if self.notifications[rule_id]["hour"] != current_hour:
+            self.notifications[rule_id]["counter"] = 0
+            self.notifications[rule_id]["hour"] = current_hour
+        # check if rate limit is configured and we have not exceed the number of notifications during this hour
+        if "rate_hour" in configuration and configuration["rate_hour"] != 0 and self.notifications[rule_id]["counter"] >= configuration["rate_hour"]: 
+            return True
+        # increase the counter
+        self.notifications[rule_id]["counter"] = self.notifications[rule_id]["counter"] + 1
+        self.log_debug("notification #"+str(self.notifications[rule_id]["counter"])+" for hour "+str(self.notifications[rule_id]["hour"])+":00")
 
     # What to do when receiving a request for this module. Continues in evaluate_rule() once all the variables are set
     def on_message(self, message):
