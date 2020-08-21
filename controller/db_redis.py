@@ -87,7 +87,7 @@ class Db_redis():
         return self.db.delete(key)
 
     # rename a key
-    def rename(self, key,new_key):
+    def rename(self, key, new_key):
         if self.query_debug: self.module.log_debug("rename "+key+" "+new_key)
         return self.db.rename(key, new_key)
 

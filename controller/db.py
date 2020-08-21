@@ -297,12 +297,29 @@ class Db(Controller):
         elif message.command == "DELETE_SENSOR":
             key = self.sensors_key+"/"+item_id
             self.log_info("deleting from the database sensor "+item_id)
-            self.db.delete(key)
             self.log_debug("deleting key "+key)
+            self.db.delete(key)
             for timeframe in ["hour", "day"]:
                 for stat in ["min", "avg", "max", "rate", "sum", "count", "count_unique"]:
-                    self.db.delete(key+"/"+timeframe+"/"+stat)
-                    self.log_debug("deleting key "+key+"/"+timeframe+"/"+stat)
+                    subkey = key+"/"+timeframe+"/"+stat
+                    if self.db.exists(subkey):
+                        self.log_debug("deleting key "+subkey)
+                        self.db.delete(subkey)
+
+        # rename a sensor in the database
+        elif message.command == "RENAME_SENSOR":
+            old_key = self.sensors_key+"/"+item_id
+            new_key = self.sensors_key+"/"+message.get_data()
+            self.log_info("renaming sensor "+item_id+" into "+message.get_data())
+            self.log_debug("renaming key "+old_key+" into "+new_key)
+            self.db.rename(old_key, new_key)
+            for timeframe in ["hour", "day"]:
+                for stat in ["min", "avg", "max", "rate", "sum", "count", "count_unique"]:
+                    old_subkey = old_key+"/"+timeframe+"/"+stat
+                    if self.db.exists(old_subkey):
+                        new_subkey = new_key+"/"+timeframe+"/"+stat
+                        self.log_debug("renaming key "+old_subkey+" into "+new_subkey)
+                        self.db.rename(old_subkey, new_subkey)
             
         # database statistics
         elif message.command == "STATS":
