@@ -58,7 +58,7 @@ class Alerter(Controller):
         # regular expression used to parse variables
         self.variable_regexp = '^(DISTANCE|TIMESTAMP|ELAPSED|COUNT|SCHEDULE|POSITION_LABEL|POSITION_TEXT|)\s*(-\d+)?(,-\d+)?\s*(\S+)$'
         # require module configuration before starting up
-        self.config_schema = 1
+        self.config_schema = 2
         self.rules_config_schema = 2
         self.sensors_config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
@@ -144,7 +144,7 @@ class Alerter(Controller):
         for macro in macros:
             rule = self.rules[rule_id][macro]
             # ensure this rule is not run too often to avoid loops
-            if rule_id in self.last_run and macro in self.last_run[rule_id] and time.time() - self.last_run[rule_id][macro] < 3: return
+            if self.config["loop_safeguard"] > 0 and rule_id in self.last_run and macro in self.last_run[rule_id] and time.time() - self.last_run[rule_id][macro] < self.config["loop_safeguard"]: return
             # keep track of the last time this run has run
             if rule_id not in self.last_run: self.last_run[rule_id] = {}
             self.last_run[rule_id][macro] = time.time()
@@ -476,10 +476,16 @@ class Alerter(Controller):
         if message.is_null and not message.args.startswith("rules/"): return
         # module's configuration
         if message.args == self.fullname and not message.is_null:
+            # upgrade the config schema
+            if message.config_schema == 1:
+                config = message.get_data()
+                config["loop_safeguard"] = 3
+                self.upgrade_config(message.args, message.config_schema, 2, config)
+                return False
             if message.config_schema != self.config_schema: 
                 return False
             # ensure the configuration file contains all required settings
-            if not self.is_valid_configuration(["retention"], message.get_data()): return False
+            if not self.is_valid_configuration(["retention", "loop_safeguard"], message.get_data()): return False
             self.config = message.get_data()
         # add/remove sensors
         elif message.args.startswith("sensors/"):

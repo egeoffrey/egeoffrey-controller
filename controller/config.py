@@ -218,6 +218,30 @@ class Config(Controller):
         self.log_info("Successfully deleted file "+filename+" (v"+str(version)+")")
         # reload the configuration
         self.reload_config()
+        
+    # rename a configuration file
+    def rename_config_file(self, from_filename, to_filename, version):
+        # validate input
+        if ".." in from_filename or ".." in to_filename:
+            self.log_warning("invalid file format")
+            return
+        # define source and destination file paths
+        from_file_path = self.config_dir+os.sep+from_filename+"."+version+".yml"
+        to_file_path = self.config_dir+os.sep+to_filename+"."+version+".yml"
+        # check if the file exists
+        if not os.path.isfile(from_file_path):
+            self.log_warning(from_filename+" does not exist")
+            return
+        # rename the file
+        try:
+            os.rename(from_file_path, to_file_path)
+        except Exception,e: 
+            self.log_warning("unable to rename "+from_file_path+" into "+to_file_path+": "+exception.get(e))
+            return
+        self.clear_config(from_filename, version)
+        self.log_info("Successfully renamed file "+from_filename+" into "+to_filename+" (v"+str(version)+")")
+        # reload the configuration
+        self.reload_config()
     
     # save a new/updated configuration file
     def save_config_file(self, file, version, data, reload_after_save=True):
@@ -311,6 +335,12 @@ class Config(Controller):
             if self.parse_topic(message.args) is None: return
             version, filename = self.parse_topic(message.args)
             self.delete_config_file(filename, version)
+        # requested to rename a configuration file
+        elif message.command == "RENAME":
+            if self.parse_topic(message.args) is None: return
+            version, from_filename = self.parse_topic(message.args)
+            to_filename = message.get_data()
+            self.rename_config_file(from_filename, to_filename, version)
         # receive manifest file, it may contain default configurations
         elif message.command == "MANIFEST":
             if message.is_null: return
