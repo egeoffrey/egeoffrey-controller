@@ -1,0 +1,57 @@
+name: Build and Publish eGeoffrey Package
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '*.*'
+  pull_request: 
+  workflow_dispatch:
+      
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }} 
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Install eGeoffrey
+        run: | 
+          sudo EGEOFFREY_INSTALL_DIRECTORY=/tmp/egeoffrey EGEOFFREY_SETUP_REMOTE=n bash -c "$(curl -ssL https://get.egeoffrey.com)"
+
+      - name: Build the eGeoffrey Package
+        run: | 
+          egeoffrey-cli -o build
+
+      - name: Install the Package
+        run: | 
+          sudo egeoffrey-cli -d /tmp/egeoffrey install ./manifest.yml
+          sudo egeoffrey-cli -d /tmp/egeoffrey start
+        
+      - name: Collect Logs
+        run: |
+          sleep 30
+          sudo egeoffrey-cli -d /tmp/egeoffrey logs > /tmp/egeoffrey.log
+          
+      - name: Check for errors
+        run: |
+          sudo cat /tmp/egeoffrey.log
+          if cat /tmp/egeoffrey.log| sed $'s/\e\\[[0-9;:]*[a-zA-Z]//g'|grep ERROR: >/dev/null ; then exit 1; fi
+
+      - name: Push the eGeoffrey Package to DockerHub
+        run: | 
+          egeoffrey-cli -f build

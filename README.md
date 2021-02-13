@@ -92,4 +92,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.3-2 on the master branch.
+The version of this egeoffrey-controller is 1.3-3 on the master branch.

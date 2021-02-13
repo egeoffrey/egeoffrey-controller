@@ -72,11 +72,31 @@ class Db(Controller):
 
     # calculate derived aggregations such as min, max and avg value
     def calculate(self, sensor_id, calculations, group_by, start, end):
+        # map for each statistics the key we need to be based upon
+        keys_to_read = {
+            "hour": {
+                "avg": "",
+                "min_max": "",
+                "rate": "",
+                "sum": "",
+                "count": "",
+                "count_unique": ""
+            },
+            "day": {
+                "avg": "/hour/avg",
+                "min_max": "/hour/avg",
+                "rate": "/hour/avg",
+                "sum": "/hour/sum",
+                "count": "/hour/count",
+                "count_unique": "/hour/count_unique"
+            }
+        }
+        # keep track of keys already read
+        cache = {}
         # set the database keys to read from and write into
         key = self.sensors_key+"/"+sensor_id
+        # set key to write and perform sanity checks
         if group_by == "hour":
-            # read raw measures        
-            key_to_read = key 
             # write hourly summary
             key_to_write = key+"/hour" 
             # ensure time boundaries are correct
@@ -84,59 +104,70 @@ class Db(Controller):
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
                 return
         elif group_by == "day":
-            # read hourly averages
-            key_to_read = key+"/hour/avg" 
             # write daily summary
             key_to_write = key+"/day" 
             # ensure time boundaries are correct
             if start == 0 or end == 0 or end-start > 24*60*60:
                 self.log_warning("Unable to calculate "+group_by+" statistics for "+sensor_id+": invalid time boundaries ("+start+"-"+end+")")
                 return
-        # retrieve from the database the data based on the given timeframe
-        data = self.db.get_by_timeframe(key_to_read, start, end, withscores=True)
-        # split between values and timestamps
-        values = []
-        timestamps = []
-        for i in range(0,len(data)):
-            timestamps.append(data[i][0])
-            values.append(data[i][1])
         # calculate the derived values
         timestamp = start
         min = avg = max = rate = sum = count = count_unique = "-"
-        if "avg" in calculations:
-            # calculate avg
-            avg = sdk.python.utils.numbers.avg(values)
-            self.db.delete_by_timeframe(key_to_write+"/avg", start, end)
-            self.db.set_series(key_to_write+"/avg", avg, timestamp)
-        if "min_max" in calculations:
-            # calculate min
-            min = sdk.python.utils.numbers.min(values)
-            self.db.delete_by_timeframe(key_to_write+"/min", start, end)
-            self.db.set_series(key_to_write+"/min", min, timestamp)
-            # calculate max
-            max = sdk.python.utils.numbers.max(values)
-            self.db.delete_by_timeframe(key_to_write+"/max", start, end)
-            self.db.set_series(key_to_write+"/max", max, timestamp)
-        if "rate" in calculations:
-            # calculate the rate of change
-            rate = sdk.python.utils.numbers.velocity(timestamps, values)
-            self.db.delete_by_timeframe(key_to_write+"/rate", start, end)
-            self.db.set_series(key_to_write+"/rate", rate, timestamp)
-        if "sum" in calculations:
-                # calculate the sum
-                sum = sdk.python.utils.numbers.sum(values)
-                self.db.delete_by_timeframe(key_to_write+"/sum", start, end)
-                self.db.set_series(key_to_write+"/sum", sum, timestamp)
-        if "count" in calculations:
-                # count the values
-                count = sdk.python.utils.numbers.count(values)
-                self.db.delete_by_timeframe(key_to_write+"/count", start, end)
-                self.db.set_series(key_to_write+"/count", count, timestamp)
-        if "count_unique" in calculations:
-                # count the unique values
-                count_unique = sdk.python.utils.numbers.count_unique(values)
-                self.db.delete_by_timeframe(key_to_write+"/count_unique", start, end)
-                self.db.set_series(key_to_write+"/count_unique", count_unique, timestamp)
+        for statistics in ["avg", "min_max", "rate", "sum", "count", "count_unique"]:
+            # if we don't need to calculate this statistics, go to the next
+            if statistics not in calculations: 
+                continue
+            # set the key to read (can be different depending on the statistics)
+            key_to_read = key+keys_to_read[group_by][statistics]
+            # check if we retrieved already this key
+            if key_to_read in cache:
+                data = cache[key_to_read]
+            # otherwise get it from the database
+            else:
+                # retrieve from the database the data based on the given timeframe
+                data = self.db.get_by_timeframe(key_to_read, start, end, withscores=True)
+                # store it in cache
+                cache[key_to_read] = data
+            # split between values and timestamps
+            values = []
+            timestamps = []
+            for i in range(0,len(data)):
+                timestamps.append(data[i][0])
+                values.append(data[i][1])
+            if statistics == "avg":
+                # calculate avg
+                avg = sdk.python.utils.numbers.avg(values)
+                self.db.delete_by_timeframe(key_to_write+"/avg", start, end)
+                self.db.set_series(key_to_write+"/avg", avg, timestamp)
+            elif statistics == "min_max":
+                # calculate min
+                min = sdk.python.utils.numbers.min(values)
+                self.db.delete_by_timeframe(key_to_write+"/min", start, end)
+                self.db.set_series(key_to_write+"/min", min, timestamp)
+                # calculate max
+                max = sdk.python.utils.numbers.max(values)
+                self.db.delete_by_timeframe(key_to_write+"/max", start, end)
+                self.db.set_series(key_to_write+"/max", max, timestamp)
+            elif statistics == "rate":
+                # calculate the rate of change
+                rate = sdk.python.utils.numbers.velocity(timestamps, values)
+                self.db.delete_by_timeframe(key_to_write+"/rate", start, end)
+                self.db.set_series(key_to_write+"/rate", rate, timestamp)
+            elif statistics == "sum":
+                    # calculate the sum
+                    sum = sdk.python.utils.numbers.sum(values)
+                    self.db.delete_by_timeframe(key_to_write+"/sum", start, end)
+                    self.db.set_series(key_to_write+"/sum", sum, timestamp)
+            elif statistics == "count":
+                    # count the values
+                    count = sdk.python.utils.numbers.count(values)
+                    self.db.delete_by_timeframe(key_to_write+"/count", start, end)
+                    self.db.set_series(key_to_write+"/count", count, timestamp)
+            elif statistics == "count_unique":
+                    # count the unique values
+                    count_unique = sdk.python.utils.numbers.count_unique(values)
+                    self.db.delete_by_timeframe(key_to_write+"/count_unique", start, end)
+                    self.db.set_series(key_to_write+"/count_unique", count_unique, timestamp)
         # broadcast value updated message
         message = Message(self)
         message.recipient = "*/*"
