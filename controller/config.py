@@ -19,6 +19,8 @@ import yaml
 import re
 import datetime
 
+import paho.mqtt.client as mqtt
+
 from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
 from sdk.python.module.helpers.message import Message
@@ -36,7 +38,7 @@ class Config(Controller):
         self.force_reload_timeout = int(os.getenv("EGEOFFREY_CONFIG_FORCE_RELOAD_TIMEOUT", 10))
         self.accept_default_config = int(os.getenv("EGEOFFREY_CONFIG_ACCEPT_DEFAULTS", 1))
         # keep track of the old config index
-        self.old_index = None
+        self.index = None
         self.index_key = "__index"
         self.index_version = 1
         self.supported_manifest_schema = 2
@@ -73,15 +75,14 @@ class Config(Controller):
         # walk through the filesystem containing the house configuration
         for (current_path, dirnames, filenames) in os.walk(self.config_dir): 
             for filename in filenames:
+                # skip files beginning with a dot
                 if filename[0] == ".": 
-                    self.log_debug("ignoring hidden file: "+filename)
-                    continue # skip files beginning with a dot
+                    continue 
                 file = current_path+os.sep+filename
                 # parse the file paths
                 name, extension = os.path.splitext(file)
                 # skip files with invalid extensions
                 if extension != ".yml": 
-                    self.log_debug("ignoring file with invalid extension: "+filename)
                     continue 
                 # ensure the filename contains the version and retrieve it
                 if self.parse_filename(name) is None:
@@ -92,7 +93,7 @@ class Config(Controller):
                 with open(file) as f: content = f.read()
                 # ensure the yaml file is valid
                 try:
-                    yaml.load(content, Loader=yaml.SafeLoader)
+                    content_data = yaml.load(content, Loader=yaml.SafeLoader)
                 except Exception,e: 
                     self.log_warning("configuration file in an invalid YAML format: "+filename+" - "+exception.get(e))
                     continue
@@ -103,25 +104,30 @@ class Config(Controller):
                     if version < index[topic]["version"]: continue
                 # update the index with the corresponding hash    
                 index[topic] = { "file": file, "version": version, "hash": self.get_hash(content) }
+                # if config is not retained on the bus, also keep track of the entire content
+                if not self.gateway_retain_config:
+                    index[topic]["content"] = content_data
         return index
     
     # publish a configuration file
-    def publish_config(self, filename, version, content):
-        if filename != self.index_key: self.log_debug("Publishing configuration "+filename+" (v"+str(version)+")")
+    def publish_config(self, filename, version, content, recipient="*/*", retain=True):
+        if filename != self.index_key: 
+            self.log_debug("Publishing configuration "+filename+" (v"+str(version)+") for "+recipient)
         message = Message(self)
-        message.recipient = "*/*"
+        message.recipient = recipient
         message.command = "CONF"
         message.args = filename
         message.config_schema = version
         message.set_data(content)
         # configuration is retained so when a module connects, immediately get the latest config
-        message.retain = True 
+        message.retain = retain 
         self.send(message)
     
     # delete a retained message from the bus
     def clear_config(self, filename, version):
         # send a null so to cancel retention
-        if filename != self.index_key: self.log_debug("Unpublishing configuration "+filename+" (v"+str(version)+")")
+        if filename != self.index_key: 
+            self.log_debug("Unpublishing configuration "+filename+" (v"+str(version)+")")
         message = Message(self)
         message.recipient = "*/*"
         message.command = "CONF"
@@ -152,47 +158,61 @@ class Config(Controller):
         if new_index is None:
             self.log_error("Unable to load configuration from "+self.config_dir)
             return
-        # 2) request the old index
-        if self.old_index is None and not self.force_reload: 
-            listener = self.add_configuration_listener(self.index_key, self.index_version)
-            # sleep by continuously checking if the index has been received
-            dec = 0
-            while (dec <= 20): 
-                if self.old_index: break
-                self.sleep(0.1)
-                dec = dec+1
-            self.remove_listener(listener)
-        # 3) if there is no old configuration, better clearing up the entire retained configuration
-        if not self.old_index or self.force_reload:
-            self.log_info("clearing up retained configuration")
-            self.clear_config_running = True
-            # subscribe for receiving all the configurations
-            listener = self.add_configuration_listener("#")
-            # clear configuration happening in on_configuration() while sleeping
-            self.sleep(30)
-            self.remove_listener(listener)
-            self.clear_config_running = False
-            self.old_index = {}
-        # reset force reload
-        if self.force_reload: self.force_reload = False
+        # if the configuration is retained on the bus, the old index is there as well, get it for comparing what has changed
+        if self.gateway_retain_config:
+            # 2) request the old index from the bus
+            if self.index is None and not self.force_reload: 
+                listener = self.add_configuration_listener(self.index_key, self.index_version)
+                # sleep by continuously checking if the index has been received
+                dec = 0
+                while (dec <= 20): 
+                    if self.index: break
+                    self.sleep(0.1)
+                    dec = dec+1
+                # index received from the bus, remove listener
+                self.remove_listener(listener)
+            # 3) if there is no old configuration, better clearing up the entire retained configuration
+            if not self.index or self.force_reload:
+                self.log_info("clearing up retained configuration")
+                self.clear_config_running = True
+                # subscribe for receiving all the configurations
+                listener = self.add_configuration_listener("#")
+                # clear configuration happening in on_configuration() while sleeping
+                self.sleep(30)
+                self.remove_listener(listener)
+                self.clear_config_running = False
+                self.index = {}
+            # reset force reload flag
+            if self.force_reload: 
+                self.force_reload = False
+        else:
+            # just initialize index data strcture
+            if self.index is None: 
+                self.index = {}
         # 4) publish new/updated configuration files only
         for topic in new_index:
             # if the file was also in the old index with the same version and has the same hash, skip it
-            if topic in self.old_index and new_index[topic]["version"] == self.old_index[topic]["version"] and new_index[topic]["hash"] == self.old_index[topic]["hash"]: continue
+            if topic in self.index and new_index[topic]["version"] == self.index[topic]["version"] and new_index[topic]["hash"] == self.index[topic]["hash"]: 
+                continue
+            if not self.gateway_retain_config and not self.index: 
+                continue
             # otherwise read the file and publish it
-            with open(new_index[topic]["file"]) as f: file = f.read()
+            with open(new_index[topic]["file"]) as f: 
+                file = f.read()
             content = yaml.load(file, Loader=yaml.SafeLoader)
             self.publish_config(topic, new_index[topic]["version"], content)
         # 5) delete removed configuration files
-        for topic in self.old_index:
+        for topic in self.index:
             # topic is in old but not in new index
             if topic not in new_index:
-                self.clear_config(topic, self.old_index[topic]["version"])
+                self.clear_config(topic, self.index[topic]["version"])
         # 6) publish/update the new index on the bus
-        self.clear_config(self.index_key, self.index_version)
-        self.publish_config(self.index_key, self.index_version, new_index)
-        self.old_index = new_index
-        self.log_info("Configuration successfully published")
+        if self.gateway_retain_config:
+            self.clear_config(self.index_key, self.index_version)
+            self.publish_config(self.index_key, self.index_version, new_index)
+            self.log_info("Configuration successfully published")
+        # save the updated index
+        self.index = new_index
         self.load_config_running = False
         self.reload_scheduled = False
     
@@ -292,12 +312,12 @@ class Config(Controller):
             except Exception,e: 
                 self.log_error("unable to create directory "+self.config_dir+": "+exception.get(e))
         self.load_config()
-        # receive manifest files with default config
-        self.add_broadcast_listener("+/+", "MANIFEST", "#")
-        # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
+        # ask for manifest files with default config
+        self.add_manifest_listener()
         self.sleep(self.force_reload_timeout)
         while True:
-            if not self.load_config_running:
+            # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
+            if not self.load_config_running and self.gateway_retain_config:
                 # ask for the index
                 self.is_config_online = False
                 listener = self.add_configuration_listener(self.index_key, self.index_version)
@@ -341,6 +361,26 @@ class Config(Controller):
             version, from_filename = self.parse_topic(message.args)
             to_filename = message.get_data()
             self.rename_config_file(from_filename, to_filename, version)
+        # a module just subscribed to a configuration topic
+        elif message.command == "SUBSCRIBE":
+            # split pattern requested from configuration version
+            match = re.match("^([^\/]+)\/(.+)$", message.get_data())
+            if match is None: return
+            version, pattern =  match.groups()
+            # check if we have this configuration file by cycling through all the topics
+            if self.index is None:
+                return
+            for topic in self.index:
+                # if the pattern subscribed matches the configuration topic
+                if mqtt.topic_matches_sub(pattern, topic):
+                    # respond to the module (directly) with the requested configuration file
+                    self.publish_config(topic, self.index[topic]["version"], self.index[topic]["content"], message.sender, False)
+            # ack the subscribe request so the sender module will not re-send the subscribe request message again
+            ack_message = Message(self)
+            ack_message.recipient = message.sender
+            ack_message.command = "SUBSCRIBE_ACK"
+            ack_message.set_data(message.get_data())
+            self.send(ack_message)
         # receive manifest file, it may contain default configurations
         elif message.command == "MANIFEST":
             if message.is_null: return
@@ -357,7 +397,8 @@ class Config(Controller):
                     file_content = entry[filename_with_version]
                     # do not overwrite existing files since the user may have changed default values
                     # for updated configurations, prevent saving the new version, letting the module managing the upgrade
-                    if filename in self.old_index: continue
+                    if filename in self.index: 
+                        continue
                     # ensure the file is in a valid YAML format
                     try:
                         content = yaml.safe_dump(file_content, default_flow_style=False)
@@ -373,7 +414,7 @@ class Config(Controller):
     def on_configuration(self, message):
         # received old index
         if message.args == "__index":
-            self.old_index = message.get_data()
+            self.index = message.get_data()
             self.is_config_online = True
             return
         # if receiving other configurations, we probably are in a clear configuration phase, delete them all

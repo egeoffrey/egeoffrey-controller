@@ -1,4 +1,4 @@
-branch: master
+branch: development
 container_config:
   environment:
   - EGEOFFREY_LOGGING_LOCAL=0
@@ -117,6 +117,7 @@ modules:
       name: duplicates_tolerance
       required: false
 package: egeoffrey-controller
-revision: 3
+revision: 4
+sdk_branch: development
 tags: controller
 version: 1.3
