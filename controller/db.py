@@ -36,7 +36,6 @@ from sdk.python.module.helpers.message import Message
 from sdk.python.utils.datetimeutils import DateTimeUtils
 import sdk.python.utils.exceptions as exception
 
-import sdk.python.constants
 import sdk.python.utils.numbers
 import sdk.python.utils.strings
 

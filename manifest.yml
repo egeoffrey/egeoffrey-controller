@@ -117,7 +117,7 @@ modules:
       name: duplicates_tolerance
       required: false
 package: egeoffrey-controller
-revision: 4
+revision: 5
 sdk_branch: development
 tags: controller
 version: 1.3

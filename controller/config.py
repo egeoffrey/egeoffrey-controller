@@ -25,7 +25,6 @@ from sdk.python.module.controller import Controller
 from sdk.python.module.helpers.scheduler import Scheduler
 from sdk.python.module.helpers.message import Message
 
-import sdk.python.constants as constants
 import sdk.python.utils.exceptions as exception
 
 class Config(Controller):
@@ -105,7 +104,7 @@ class Config(Controller):
                 # update the index with the corresponding hash    
                 index[topic] = { "file": file, "version": version, "hash": self.get_hash(content) }
                 # if config is not retained on the bus, also keep track of the entire content
-                if not self.gateway_retain_config:
+                if self.gateway_version >= 2:
                     index[topic]["content"] = content_data
         return index
     
@@ -159,7 +158,7 @@ class Config(Controller):
             self.log_error("Unable to load configuration from "+self.config_dir)
             return
         # if the configuration is retained on the bus, the old index is there as well, get it for comparing what has changed
-        if self.gateway_retain_config:
+        if self.gateway_version == 1:
             # 2) request the old index from the bus
             if self.index is None and not self.force_reload: 
                 listener = self.add_configuration_listener(self.index_key, self.index_version)
@@ -194,7 +193,7 @@ class Config(Controller):
             # if the file was also in the old index with the same version and has the same hash, skip it
             if topic in self.index and new_index[topic]["version"] == self.index[topic]["version"] and new_index[topic]["hash"] == self.index[topic]["hash"]: 
                 continue
-            if not self.gateway_retain_config and not self.index: 
+            if self.gateway_version >= 2 and not self.index: 
                 continue
             # otherwise read the file and publish it
             with open(new_index[topic]["file"]) as f: 
@@ -207,7 +206,7 @@ class Config(Controller):
             if topic not in new_index:
                 self.clear_config(topic, self.index[topic]["version"])
         # 6) publish/update the new index on the bus
-        if self.gateway_retain_config:
+        if self.gateway_version == 1 :
             self.clear_config(self.index_key, self.index_version)
             self.publish_config(self.index_key, self.index_version, new_index)
             self.log_info("Configuration successfully published")
@@ -317,7 +316,7 @@ class Config(Controller):
         self.sleep(self.force_reload_timeout)
         while True:
             # periodically ensure there is a configuration available (e.g. to republish if the broker restarts)
-            if not self.load_config_running and self.gateway_retain_config:
+            if not self.load_config_running and self.gateway_version == 1:
                 # ask for the index
                 self.is_config_online = False
                 listener = self.add_configuration_listener(self.index_key, self.index_version)
