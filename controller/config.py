@@ -362,6 +362,9 @@ class Config(Controller):
             self.rename_config_file(from_filename, to_filename, version)
         # a module just subscribed to a configuration topic
         elif message.command == "SUBSCRIBE":
+            # if config is not loaded yet, return, the sender will call back later
+            if self.load_config_running:
+                return
             # split pattern requested from configuration version
             match = re.match("^([^\/]+)\/(.+)$", message.get_data())
             if match is None: return
@@ -372,6 +375,10 @@ class Config(Controller):
             for topic in self.index:
                 # if the pattern subscribed matches the configuration topic
                 if mqtt.topic_matches_sub(pattern, topic):
+                    # when a service subscribes to all the sensors, just send over those associated with those service to avoid sending out too many messages
+                    if self.gateway_version >= 2 and message.sender.startswith("service/") and pattern == "sensors/#":
+                        if "service" not in self.index[topic]["content"] or "service/"+self.index[topic]["content"]["service"]["name"] != message.sender:
+                            continue
                     # respond to the module (directly) with the requested configuration file
                     self.publish_config(topic, self.index[topic]["version"], self.index[topic]["content"], message.sender, False)
             # ack the subscribe request so the sender module will not re-send the subscribe request message again
