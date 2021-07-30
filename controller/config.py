@@ -402,9 +402,9 @@ class Config(Controller):
             if not self.accept_default_config or self.force_reload or not "default_config" in manifest: 
                 return
             # ensure we have not already received the same manifest before
-            if message.sender in self.manifests and self.manifests[message.sender] == self.get_hash(manifest):
+            if message.sender in self.manifests and self.manifests[message.sender] == self.get_hash(str(manifest)):
                 return
-            self.manifests[message.sender] = self.get_hash(manifest)
+            self.manifests[message.sender] = self.get_hash(str(manifest))
             # if there is a default configuration in the manifest file, save it
             default_config = manifest["default_config"]
             for entry in default_config:
