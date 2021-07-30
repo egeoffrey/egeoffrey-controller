@@ -33,7 +33,7 @@ jobs:
         run: | 
           sudo EGEOFFREY_INSTALL_DIRECTORY=/tmp/egeoffrey EGEOFFREY_SETUP_REMOTE=n bash -c "$(curl -ssL https://get.egeoffrey.com)"
 
-      - name: Cache build images
+      - name: Cache build images 
         uses: satackey/action-docker-layer-caching@v0.0.11
         continue-on-error: true
 
