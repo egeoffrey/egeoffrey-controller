@@ -43,6 +43,8 @@ class Config(Controller):
         self.supported_manifest_schema = 2
         # scheduler is used for scheduling config reload
         self.scheduler = Scheduler(self)
+        # keep track of received manifests
+        self.manifests = {}
         # status flags
         self.load_config_running = False
         self.clear_config_running = False
@@ -387,13 +389,22 @@ class Config(Controller):
             ack_message.command = "SUBSCRIBE_ACK"
             ack_message.set_data(message.get_data())
             self.send(ack_message)
-        # receive manifest file, it may contain default configurations
+        # receive manifest file (configuration is already loaded), it may contain default configurations
         elif message.command == "MANIFEST":
-            if message.is_null: return
+            if message.is_null: 
+                return
             manifest = message.get_data()
-            if manifest["manifest_schema"] != self.supported_manifest_schema: return
+            # ensure this is a manifest we can handle
+            if manifest["manifest_schema"] != self.supported_manifest_schema: 
+                return
             self.log_debug("Received manifest from "+message.sender)
-            if not self.accept_default_config or self.force_reload or not "default_config" in manifest: return
+            # if not accepting default configurations or if there are no default config, just return
+            if not self.accept_default_config or self.force_reload or not "default_config" in manifest: 
+                return
+            # ensure we have not already received the same manifest before
+            if message.sender in self.manifests and self.manifests[message.sender] == self.get_hash(manifest):
+                return
+            self.manifests[message.sender] = self.get_hash(manifest)
             # if there is a default configuration in the manifest file, save it
             default_config = manifest["default_config"]
             for entry in default_config:
