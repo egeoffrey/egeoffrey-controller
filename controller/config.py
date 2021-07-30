@@ -114,6 +114,8 @@ class Config(Controller):
     def publish_config(self, filename, version, content, recipient="*/*", retain=True):
         if filename != self.index_key: 
             self.log_debug("Publishing configuration "+filename+" (v"+str(version)+") for "+recipient)
+        if self.gateway_version >= 2:
+            retain = False
         message = Message(self)
         message.recipient = recipient
         message.command = "CONF"
@@ -382,7 +384,7 @@ class Config(Controller):
                         if "service" not in self.index[topic]["content"] or "service/"+self.index[topic]["content"]["service"]["name"] != message.sender:
                             continue
                     # respond to the module (directly) with the requested configuration file
-                    self.publish_config(topic, self.index[topic]["version"], self.index[topic]["content"], message.sender, False)
+                    self.publish_config(topic, self.index[topic]["version"], self.index[topic]["content"], message.sender)
             # ack the subscribe request so the sender module will not re-send the subscribe request message again
             ack_message = Message(self)
             ack_message.recipient = message.sender

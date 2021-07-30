@@ -33,20 +33,6 @@ jobs:
         run: | 
           sudo EGEOFFREY_INSTALL_DIRECTORY=/tmp/egeoffrey EGEOFFREY_SETUP_REMOTE=n bash -c "$(curl -ssL https://get.egeoffrey.com)"
 
-      - name: Debug 1
-        run: |
-          sudo docker pull egeoffrey/egeoffrey-sdk-alpine:development-amd64
-          sudo docker pull egeoffrey/egeoffrey-sdk-alpine:development-arm32v6
-
-      - name: Cache build images 
-        uses: satackey/action-docker-layer-caching@v0.0.11
-        continue-on-error: true
-
-      - name: Debug 2
-        run: |
-          sudo docker images
-          sudo docker history egeoffrey/egeoffrey-controller:development-amd64
-
       - name: Build the eGeoffrey Package
         run: | 
           egeoffrey-cli -o build
