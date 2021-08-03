@@ -43,3 +43,4 @@ retain:
       daily: 5
       new_only: true
 duplicates_tolerance: 3
+pin_last_values: false

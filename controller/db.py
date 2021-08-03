@@ -36,7 +36,6 @@ from sdk.python.module.helpers.message import Message
 from sdk.python.utils.datetimeutils import DateTimeUtils
 import sdk.python.utils.exceptions as exception
 
-import sdk.python.constants
 import sdk.python.utils.numbers
 import sdk.python.utils.strings
 
@@ -196,7 +195,8 @@ class Db(Controller):
     # What to do when shutting down
     def on_stop(self):
         # disconnect from the database
-        self.db.disconnect()
+        if self.db is not None:
+            self.db.disconnect()
 
     # What to do when receiving a request for this module    
     def on_message(self, message):

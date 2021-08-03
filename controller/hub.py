@@ -40,7 +40,7 @@ class Hub(Controller):
         # date/time helper
         self.date = None
         # request required configuration files
-        self.config_schema = 3
+        self.config_schema = 4
         self.sensors_config_schema = 1
         self.add_configuration_listener(self.fullname, "+", True)
         self.add_configuration_listener("house", 1, True)
@@ -104,13 +104,14 @@ class Hub(Controller):
             self.log_debug("Removing sensor "+sensor_id)
             del self.sensors[sensor_id]
         # unpin the latest value of the sensor
-        message = Message(self)
-        message.recipient = "*/*"
-        message.command = "LAST_VALUE"
-        message.args = sensor_id
-        message.retain = True
-        message.set_null()
-        self.send(message)     
+        if "pin_last_values" in self.config and self.config["pin_last_values"]:
+            message = Message(self)
+            message.recipient = "*/*"
+            message.command = "LAST_VALUE"
+            message.args = sensor_id
+            message.retain = True
+            message.set_null()
+            self.send(message)     
         
     # What to do when running
     def on_start(self):
@@ -263,14 +264,15 @@ class Hub(Controller):
                 message.set_data(alert_text)
                 self.send(message)
                 # pin the latest value to the broker
-                message = Message(self)
-                message.recipient = "*/*"
-                message.command = "LAST_VALUE"
-                message.args = sensor_id
-                message.retain = True
-                message.set("value", orig_value if sdk.python.utils.numbers.is_number(orig_value) else value)
-                message.set("timestamp", self.date.timestamp2date(self.date.now()))
-                self.send(message)                
+                if "pin_last_values" in self.config and self.config["pin_last_values"]:
+                    message = Message(self)
+                    message.recipient = "*/*"
+                    message.command = "LAST_VALUE"
+                    message.args = sensor_id
+                    message.retain = True
+                    message.set("value", orig_value if sdk.python.utils.numbers.is_number(orig_value) else value)
+                    message.set("timestamp", self.date.timestamp2date(self.date.now()))
+                    self.send(message)                
                 # save the notification in the db
                 message = Message(self)
                 message.recipient = "controller/db"
@@ -279,7 +281,7 @@ class Hub(Controller):
                 message.set_data(alert_text)
                 self.send(message)
 
-     # What to do when receiving a new/updated configuration for this module    
+     # What to do when receiving a new/updated configuration for this module
     def on_configuration(self, message):
         # ignore deleted configuration files while service is restarting
         if message.is_null and not message.args.startswith("sensors/"): return
@@ -296,6 +298,11 @@ class Hub(Controller):
                 config["processors"] = config["post_processors"]
                 del config["post_processors"]
                 self.upgrade_config(message.args, message.config_schema, 3, config)
+                return False
+            elif message.config_schema == 3:
+                config = message.get_data()
+                config["pin_last_values"] = False
+                self.upgrade_config(message.args, message.config_schema, 4, config)
                 return False
             if message.config_schema != self.config_schema: 
                 return False

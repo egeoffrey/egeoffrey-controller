@@ -116,7 +116,12 @@ modules:
       format: int
       name: duplicates_tolerance
       required: false
+    - description: if pinning (retaining) the last value of each sensor on the message
+        bus
+      format: checkbox
+      name: pin_last_values
+      required: false
 package: egeoffrey-controller
-revision: 3
+revision: 5
 tags: controller
-version: 1.3
+version: 1.4
