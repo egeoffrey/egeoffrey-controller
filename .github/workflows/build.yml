@@ -35,17 +35,17 @@ jobs:
 
       - name: Build the eGeoffrey Package
         run: | 
-          egeoffrey-cli -o build
+          egeoffrey-cli -o repo build
 
       - name: Install the Package
         run: | 
-          sudo egeoffrey-cli -d /tmp/egeoffrey install ./manifest.yml
-          sudo egeoffrey-cli -d /tmp/egeoffrey start
+          sudo egeoffrey-cli -d /tmp/egeoffrey package install ./manifest.yml
+          sudo egeoffrey-cli -d /tmp/egeoffrey house start
         
       - name: Collect Logs
         run: |
           sleep 30
-          sudo egeoffrey-cli -d /tmp/egeoffrey logs > /tmp/egeoffrey.log
+          sudo egeoffrey-cli -d /tmp/egeoffrey house logs > /tmp/egeoffrey.log
           
       - name: Check for errors
         run: |
@@ -54,4 +54,4 @@ jobs:
 
       - name: Push the eGeoffrey Package to DockerHub
         run: | 
-          egeoffrey-cli -f build
+          egeoffrey-cli -f repo build
