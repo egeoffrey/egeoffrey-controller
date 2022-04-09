@@ -122,6 +122,6 @@ modules:
       name: pin_last_values
       required: false
 package: egeoffrey-controller
-revision: 6
+revision: 7
 tags: controller
 version: 1.4
