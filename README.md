@@ -10,9 +10,9 @@ The eGeoffrey controller manages the configuration of all the modules and coordi
 
 To install this package, run the following command from within your eGeoffrey installation directory:
 ```
-egeoffrey-cli install egeoffrey-controller
+egeoffrey-cli package install egeoffrey-controller
 ```
-After the installation, remember to run also `egeoffrey-cli start` to ensure the Docker image of the package is effectively downloaded and started.
+After the installation, remember to run also `egeoffrey-cli house start` to ensure the Docker image of the package is effectively downloaded and started.
 To validate the installation, go and visit the *'eGeoffrey Admin'* / *'Packages'* page of your eGeoffrey instance. All the modules, default configuration files and out-of-the-box contents if any will be automatically deployed and made available.
 ## Content
 
@@ -56,7 +56,7 @@ To configure each module included in this package, once started, click on the *'
 
 If you are the author of this package, simply clone the repository, apply any change you would need and run the following command from within this package's directory to commit your changes and automatically push them to Github:
 ```
-egeoffrey-cli commit "<comment>"
+egeoffrey-cli repo commit "<comment>"
 ```
 After taking this action, remember you still need to build (see below) the package (e.g. the Docker image) to make it available for installation.
 
@@ -66,7 +66,7 @@ If you are a user willing to contribute to somebody's else package, submit your 
 
 Building is required only if you are the author of the package. To build a Docker image and automatically push it to [Docker Hub](https://hub.docker.com/r/egeoffrey/egeoffrey-controller), run the following command from within this package's directory:
 ```
-egeoffrey-cli build egeoffrey-controller
+egeoffrey-cli repo build egeoffrey-controller
 ```
 To function properly, when running in a Docker container, the following additional configuration settings has to be added to e.g. your docker-compose.yml file (when installing through egeoffrey-cli, this is not needed since done automatically upon installation):
 ```
@@ -81,9 +81,9 @@ volumes:
 
 To uninstall this package, run the following command from within your eGeoffrey installation directory:
 ```
-egeoffrey-cli uninstall egeoffrey-controller
+egeoffrey-cli pacakge uninstall egeoffrey-controller
 ```
-Remember to run also `egeoffrey-cli start` to ensure the changes are correctly applied.
+Remember to run also `egeoffrey-cli house start` to ensure the changes are correctly applied.
 ## Tags
 
 The following tags are associated to this package:
@@ -93,4 +93,4 @@ controller
 
 ## Version
 
-The version of this egeoffrey-controller is 1.4-5 on the master branch.
+The version of this egeoffrey-controller is 1.4-6 on the master branch.

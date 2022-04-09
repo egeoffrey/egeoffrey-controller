@@ -31,6 +31,7 @@ class Config(Controller):
     # What to do when initializing    
     def on_init(self):
         # variables
+        self.gateway_version = int(self.gateway_version)
         self.config_dir = os.getenv("EGEOFFREY_CONFIG_DIR", os.path.abspath(os.path.dirname(__file__))+"/../config")
         self.log_debug("Configuration directory set to "+self.config_dir)
         self.force_reload = int(os.getenv("EGEOFFREY_CONFIG_FORCE_RELOAD", 0))
